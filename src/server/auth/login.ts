@@ -4,7 +4,7 @@ import type { StaffRole } from "@/lib/domain/staff";
 import { type AuditDetail, writeAudit } from "@/server/api/audit";
 import { db } from "@/server/db";
 import { verifyPassword } from "./password";
-import { createSession } from "./session";
+import { createSession, revokeSessionByToken } from "./session";
 
 /**
  * 로그인 — T2-1, 기획서 10장(5회 실패 시 잠금).
@@ -21,6 +21,9 @@ import { createSession } from "./session";
  *   관리자에게 해제를 요청할 수 있어야 하므로 받아들인다. 잠긴 계정에는 더 이상 비밀번호를 대입할 수 없다.
  * - 비밀번호 원문은 어디에도(로그·감사 로그·에러·응답) 넣지 않는다. 감사 행에는 결과와 사유 코드만 남긴다.
  * - 감사 행은 이 모듈이 직접 쓴다: 요청 전에는 누가 로그인하는지 몰라 defineRoute가 쓸 수 없다.
+ * - 잠금은 새 로그인만 막는다. 이미 로그인한 세션은 끊지 않는다(session.ts 설명).
+ * - 로그인에 성공하면 브라우저가 보낸 이전 세션(meta.previousToken)을 끊는다. 공용 PC에서 직원 B가 로그인한 뒤
+ *   직원 A의 세션 토큰이 12시간 동안 살아 있지 않게 한다. 감사 행 detail에 previousSessionRevoked로 남긴다.
  */
 
 export const MAX_FAILED_LOGINS = 5;
@@ -33,7 +36,13 @@ export const DUMMY_PASSWORD_HASH =
   "$argon2id$v=19$m=19456,t=2,p=1$D9XQ5bXjJoOANr/IMxpHFg$6duMEow0FLQ2df0Zl6Amf8NeKt4mhZ/8WlUS8d2VpCU";
 
 export type LoginInput = { loginId: string; password: string };
-export type LoginMeta = { ip: string | null; userAgent: string | null; now: Date };
+export type LoginMeta = {
+  ip: string | null;
+  userAgent: string | null;
+  now: Date;
+  /** 요청 쿠키에 있던 세션 토큰(있으면). 로그인에 성공하면 끊는다. */
+  previousToken?: string | null;
+};
 
 export type LoginResult =
   | {
@@ -83,8 +92,9 @@ export async function login(input: LoginInput, meta: LoginMeta): Promise<LoginRe
     return { ok: false, reason: "LOCKED" };
   }
 
+  const previousSessionRevoked = meta.previousToken ? await revokeSessionByToken(meta.previousToken, meta.now) : false;
   const session = await createSession(staff.id, meta);
-  await audit(staff.id, "SUCCESS", {});
+  await audit(staff.id, "SUCCESS", previousSessionRevoked ? { previousSessionRevoked } : {});
   return {
     ok: true,
     staff: { id: staff.id, name: staff.name, role: staff.role, loginId: staff.loginId },

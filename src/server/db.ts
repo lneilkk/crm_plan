@@ -1,7 +1,7 @@
 import "server-only";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@/generated/prisma/client";
+import { type Prisma, PrismaClient } from "@/generated/prisma/client";
 
 /**
  * 앱 전체가 함께 쓰는 Prisma 클라이언트.
@@ -27,4 +27,15 @@ export const db: PrismaClient = globalForDb.__crmDb ?? createClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForDb.__crmDb = db;
+}
+
+/**
+ * 서비스가 받는 DB 클라이언트 — 전역 db 또는 트랜잭션 안의 클라이언트.
+ * 쓰기 API는 defineRoute가 연 트랜잭션(ctx.db)을 서비스에 넘겨, 변경과 감사 행이 함께 커밋되게 한다.
+ */
+export type DbClient = Prisma.TransactionClient;
+
+/** client를 주면 그 안에서(이미 트랜잭션 안), 없으면 새 트랜잭션을 열어 work를 실행한다. */
+export function inTransaction<T>(client: DbClient | undefined, work: (tx: DbClient) => Promise<T>): Promise<T> {
+  return client ? work(client) : db.$transaction(work);
 }

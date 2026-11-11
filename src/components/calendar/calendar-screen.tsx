@@ -219,6 +219,7 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
       ) : (
         <DayPanel
           date={date}
+          today={today}
           settings={settings}
           doctors={doctors}
           mode={mode}
@@ -253,6 +254,7 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
           appointment={opened}
           chairs={settings.chairs}
           canWrite={canWrite}
+          today={today}
           onClose={() => setOpened(null)}
           onMoved={refresh}
         />
@@ -266,6 +268,7 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
 /** 일 보기 + 휴진 안내 */
 function DayPanel({
   date,
+  today,
   settings,
   doctors,
   mode,
@@ -278,6 +281,8 @@ function DayPanel({
   onMove,
 }: {
   date: DateKey;
+  /** 오늘(한국 시간). 지난 날에는 예약 등록·끌어 옮기기를 하지 않는다(서버도 거부한다). */
+  today: DateKey;
   settings: ClinicSettings;
   doctors: DoctorOption[];
   mode: ColumnMode;
@@ -328,7 +333,7 @@ function DayPanel({
           columns={columns}
           mode={mode}
           appointments={dayItems}
-          canWrite={canWrite && hours !== null}
+          canWrite={canWrite && hours !== null && date >= today}
           pendingMove={pendingMove}
           onCellClick={onCellClick}
           onOpen={onOpen}

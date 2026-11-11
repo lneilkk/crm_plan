@@ -72,6 +72,13 @@ const missingAudit = defineRoute({
 
 const publicRoute = defineRoute({ permission: "public", audit: "none", handler: (ctx) => ({ staff: ctx.staff }) });
 
+/** ctx.inputDevice를 그대로 돌려준다 */
+const echoInputDevice = defineRoute({
+  permission: "public",
+  audit: "none",
+  handler: (ctx) => ({ inputDevice: ctx.inputDevice }),
+});
+
 async function audits() {
   return db.auditLog.findMany({ orderBy: { createdAt: "asc" } });
 }
@@ -293,5 +300,99 @@ describe("감사 로그", () => {
     const serverNow = Date.parse(res.json.serverNow);
     expect(serverNow).toBeGreaterThanOrEqual(before);
     expect(serverNow).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+describe("ctx.inputDevice (요청 헤더 x-input-device)", () => {
+  const echo = async (value?: string) =>
+    (await callRoute(echoInputDevice, value === undefined ? {} : { headers: { "x-input-device": value } })).json
+      .inputDevice;
+
+  it("영문·숫자·_.:-만으로 된 값은 앞뒤 공백을 자르고 64자까지 받는다", async () => {
+    expect(await echo("web-0123456789ab")).toBe("web-0123456789ab");
+    expect(await echo("front-pc_1:a.b")).toBe("front-pc_1:a.b");
+    expect(await echo("a".repeat(80))).toBe("a".repeat(64));
+  });
+
+  it("없거나 형식이 틀리면 null", async () => {
+    expect(await echo()).toBeNull();
+    expect(await echo("")).toBeNull();
+    expect(await echo("front pc")).toBeNull();
+    // 한글은 UTF-8 바이트가 그대로 실려 온다
+    expect(await echo(Buffer.from("접수PC", "utf8").toString("latin1"))).toBeNull();
+  });
+});
+
+describe("쓰기 요청의 감사 행은 변경과 한 트랜잭션 (ctx.db)", () => {
+  /** ctx.db로 메모를 바꾸고, fail이면 바꾼 뒤 ApiError를 던진다 */
+  const writeMemo = defineRoute({
+    permission: "patient.write",
+    audit: "TEST_PATIENT_MEMO",
+    params: z.object({ id: z.uuid() }),
+    body: z.object({ memo: z.string().max(10), fail: z.boolean() }),
+    handler: async (ctx) => {
+      ctx.touchPatients([ctx.params.id]);
+      await ctx.db.patient.update({ where: { id: ctx.params.id }, data: { memo: ctx.body.memo } });
+      if (ctx.body.fail) throw new ApiError(409, "TEST_CONFLICT", "충돌");
+      return { ok: true };
+    },
+  });
+
+  const call = (cookie: string, id: string, body: Record<string, unknown>) =>
+    callRoute(writeMemo, { method: "POST", cookie, params: { id }, body });
+
+  it("성공하면 변경과 SUCCESS 행이 함께 남는다", async () => {
+    const front = await loginAs("FRONT");
+    const patient = await createPatient();
+    expect((await call(front.cookie, patient.id, { memo: "새 메모", fail: false })).status).toBe(200);
+    expect((await db.patient.findUniqueOrThrow({ where: { id: patient.id } })).memo).toBe("새 메모");
+    const rows = await db.auditLog.findMany({ where: { action: "TEST_PATIENT_MEMO" } });
+    expect(rows.map((r) => [r.result, r.patientId])).toEqual([["SUCCESS", patient.id]]);
+  });
+
+  it("핸들러가 쓰고 나서 던지면 변경은 취소되고 FAILED 행만 남는다", async () => {
+    const front = await loginAs("FRONT");
+    const patient = await createPatient();
+    const res = await call(front.cookie, patient.id, { memo: "새 메모", fail: true });
+    expect(res.status).toBe(409);
+    expect((await db.patient.findUniqueOrThrow({ where: { id: patient.id } })).memo).toBeNull();
+    const rows = await db.auditLog.findMany({ where: { action: "TEST_PATIENT_MEMO" } });
+    expect(rows.map((r) => [r.result, r.patientId])).toEqual([["FAILED", patient.id]]);
+    expect(rows[0].detail).toMatchObject({ errorCode: "TEST_CONFLICT" });
+  });
+
+  it("감사 행 INSERT가 실패하면 변경도 취소되고 500", async () => {
+    const front = await loginAs("FRONT");
+    const patient = await createPatient();
+    // 이 라우트의 SUCCESS 감사 행 INSERT만 실패하도록 CHECK 제약을 잠시 건다.
+    await db.$executeRawUnsafe(
+      `ALTER TABLE audit_log ADD CONSTRAINT test_no_memo_success CHECK (NOT (action = 'TEST_PATIENT_MEMO' AND result = 'SUCCESS'))`,
+    );
+    try {
+      const res = await call(front.cookie, patient.id, { memo: "새 메모", fail: false });
+      expect(res.status).toBe(500);
+      expect((await db.patient.findUniqueOrThrow({ where: { id: patient.id } })).memo).toBeNull();
+      const rows = await db.auditLog.findMany({ where: { action: "TEST_PATIENT_MEMO" } });
+      expect(rows.map((r) => r.result)).toEqual(["FAILED"]);
+    } finally {
+      await db.$executeRawUnsafe(`ALTER TABLE audit_log DROP CONSTRAINT test_no_memo_success`);
+    }
+  });
+});
+
+describe("요청 본문 상한", () => {
+  it("상한(64 KiB)을 넘는 본문은 세션이 있어도 413, FAILED 감사 행", async () => {
+    const front = await loginAs("FRONT");
+    const patient = await createPatient();
+    const res = await callRoute(writePatient, {
+      method: "POST",
+      cookie: front.cookie,
+      params: { id: patient.id },
+      body: JSON.stringify({ memo: "a".repeat(70 * 1024), phone: "010-0123-4567" }),
+    });
+    expect(res.status).toBe(413);
+    expect(res.json.error.code).toBe("PAYLOAD_TOO_LARGE");
+    const rows = await db.auditLog.findMany({ where: { action: "TEST_PATIENT_UPDATE" } });
+    expect(rows.map((r) => r.result)).toEqual(["FAILED"]);
   });
 });

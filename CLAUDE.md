@@ -50,6 +50,7 @@
 | `npm run db:fresh` | 개발 DB를 처음부터: `db:reset` → `db:seed` → `fake:data`. 개발 DB의 데이터가 모두 지워짐(개발자 전용) |
 | `npm run test:integration` | DB 통합 테스트(`tests/integration/`). 실행마다 임시 DB `crm_test_*`를 만들고 끝나면 지움. 개발 DB는 건드리지 않음 |
 | `npm run test:e2e` | 브라우저 시나리오 테스트(`tests/e2e/`, Playwright). 별도 DB `crm_e2e`를 새로 만들고 개발 서버를 127.0.0.1:3105에 띄움. 실행 중에는 이 폴더에서 `npm run dev`를 같이 돌리지 않음 |
+| `npm run staff:unlock -- <아이디>` | 운영자용 계정 잠금 해제(관리자까지 모두 잠겨 화면에서 풀 수 없을 때). 해제와 감사 로그를 한 트랜잭션에 기록 |
 | `npm run db:test:clean` | 비정상 종료로 남은 `crm_test_*` DB 삭제(실행 중인 테스트의 DB는 남김) |
 
 ## 폴더 구조

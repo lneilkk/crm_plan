@@ -17,6 +17,7 @@ import {
   type VisitType,
 } from "@/lib/domain/patient";
 import { normalizePhone } from "@/lib/phone";
+import { containsResidentRegistrationNumber, MEMO_GUIDE } from "@/lib/validation/forbidden-text";
 import type { DuplicatePatient, PatientDetail } from "@/server/patients/service";
 import { Button, Card, cn, FieldError, Input, Label, Select } from "@/components/ui";
 
@@ -28,7 +29,7 @@ const FIELD_MESSAGE: Record<FieldName, string> = {
   birthDate: "생년월일을 확인하세요.",
   dentwebChartNo: "차트번호는 30자 이하로 입력하세요.",
   tags: "태그는 10개까지, 각 20자 이하로 입력하세요.",
-  memo: "메모는 1000자 이하로 입력하세요.",
+  memo: "메모는 1000자 이하로, 주민등록번호 없이 입력하세요.",
 };
 
 type FormValues = {
@@ -80,6 +81,7 @@ function localErrors(values: FormValues): FieldName[] {
   const errors: FieldName[] = [];
   if (!values.name.trim()) errors.push("name");
   if (!normalizePhone(values.phone)) errors.push("phone");
+  if (containsResidentRegistrationNumber(values.memo)) errors.push("memo");
   return errors;
 }
 
@@ -243,9 +245,12 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
             value={values.memo}
             onChange={(e) => set("memo", e.target.value)}
             {...errorProps("memo")}
+            aria-describedby={hasError("memo") ? "memo-error memo-guide" : "memo-guide"}
           />
           {error("memo")}
-          <p className="mt-1 text-sm text-slate-500">진단·처방 같은 진료 내용은 적지 않습니다.</p>
+          <p id="memo-guide" className="mt-1 text-sm text-slate-500">
+            {MEMO_GUIDE}
+          </p>
         </div>
 
         {duplicates && (

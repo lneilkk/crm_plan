@@ -101,13 +101,14 @@ function postStatus(id: string, body: StatusBody, cookie = front.cookie, headers
   });
 }
 
-function postRevert(id: string, expectedStatus: AppointmentStatus, cookie = front.cookie) {
+function postRevert(id: string, expectedStatus: AppointmentStatus, cookie = front.cookie, headers?: Record<string, string>) {
   return callRoute(revertRoute, {
     method: "POST",
     url: `/api/appointments/${id}/revert`,
     cookie,
     params: { id },
     body: { expectedStatus },
+    headers,
   });
 }
 
@@ -416,6 +417,56 @@ describe("이력을 쓰지 못하면 상태도 바뀌지 않는다", () => {
       ).rejects.toThrow();
       expect(await snapshot(appointment.id)).toEqual(before);
     }
+  });
+});
+
+// --- 입력 기기 ---
+
+describe("입력 기기 (요청 헤더 x-input-device → visit_status_log.input_device)", () => {
+  /** 브라우저 apiFetch가 보내는 형식("web-" + 16진수 12자) */
+  const DEVICE = "web-0123456789ab";
+
+  async function latestLog(appointmentId: string) {
+    return db.visitStatusLog.findFirstOrThrow({ where: { appointmentId }, orderBy: { createdAt: "desc" } });
+  }
+
+  it("상태 변경은 보낸 기기 id를 그대로 남긴다", async () => {
+    const appointment = await book(nextSlot("past"));
+    const res = await postStatus(appointment.id, { to: "ARRIVED", expectedStatus: "BOOKED" }, front.cookie, {
+      "x-input-device": DEVICE,
+    });
+    expect(res.status).toBe(200);
+    expect(await latestLog(appointment.id)).toMatchObject({ fromStatus: "BOOKED", toStatus: "ARRIVED", inputDevice: DEVICE });
+  });
+
+  it("되돌리기도 기기 id를 남긴다", async () => {
+    const appointment = await book(nextSlot("past"));
+    expect((await postStatus(appointment.id, { to: "ARRIVED", expectedStatus: "BOOKED" })).status).toBe(200);
+    const res = await postRevert(appointment.id, "ARRIVED", front.cookie, { "x-input-device": DEVICE });
+    expect(res.status).toBe(200);
+    expect(await latestLog(appointment.id)).toMatchObject({ fromStatus: "ARRIVED", toStatus: "BOOKED", inputDevice: DEVICE });
+  });
+
+  // 헤더 값은 바이트열이라 한글은 UTF-8 바이트를 그대로 실어 보낸다(브라우저 밖 도구가 보낸 경우와 같다).
+  const asWireBytes = (value: string) => Buffer.from(value, "utf8").toString("latin1");
+
+  it.each(["접수 PC", "front pc", "가상기기", "web/0123", "   "])(
+    "형식이 틀린 값 %j는 버리고 null로 남긴다 (변경 자체는 된다)",
+    async (device) => {
+      const appointment = await book(nextSlot("past"));
+      const res = await postStatus(appointment.id, { to: "ARRIVED", expectedStatus: "BOOKED" }, front.cookie, {
+        "x-input-device": asWireBytes(device),
+      });
+      expect(res.status).toBe(200);
+      const log = await latestLog(appointment.id);
+      expect(log).toMatchObject({ toStatus: "ARRIVED", inputDevice: null });
+    },
+  );
+
+  it("헤더가 없으면 null", async () => {
+    const appointment = await book(nextSlot("past"));
+    expect((await postStatus(appointment.id, { to: "ARRIVED", expectedStatus: "BOOKED" })).status).toBe(200);
+    expect((await latestLog(appointment.id)).inputDevice).toBeNull();
   });
 });
 

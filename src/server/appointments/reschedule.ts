@@ -3,7 +3,7 @@ import "server-only";
 import type { AppointmentStatus } from "@/lib/domain/appointment";
 import { kstDateKey } from "@/lib/time/kst";
 import { ApiError } from "@/server/api/errors";
-import { db } from "@/server/db";
+import { type DbClient, inTransaction } from "@/server/db";
 import { createAppointment, invalidField, isOnSlotBoundary } from "./create";
 import { changeStatus, lockAppointment, type StatusActor } from "./status";
 
@@ -32,13 +32,14 @@ export type RescheduleInput = {
   inputDevice?: string | null;
 };
 
-export async function rescheduleAppointment(input: RescheduleInput) {
+/** client를 주면 그 트랜잭션 안에서(route의 ctx.db), 없으면 새 트랜잭션에서 실행한다. */
+export async function rescheduleAppointment(input: RescheduleInput, client?: DbClient) {
   if (!isOnSlotBoundary(input.startAt)) throw invalidField("startAt", "not_on_slot");
   // 캘린더 옮기기(move.ts)와 같은 규칙: 오늘(한국 시간) 이전 날짜로는 바꿀 수 없다
   if (kstDateKey(input.startAt) < kstDateKey(input.now)) {
     throw new ApiError(400, "PAST_DATE", "지난 날짜로는 예약을 바꿀 수 없습니다.");
   }
-  return db.$transaction(async (tx) => {
+  return inTransaction(client, async (tx) => {
     await lockAppointment(tx, input.appointmentId);
     const original = await tx.appointment.findUniqueOrThrow({
       where: { id: input.appointmentId },

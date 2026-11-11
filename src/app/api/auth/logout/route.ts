@@ -6,7 +6,7 @@ export const POST = defineRoute({
   permission: "authenticated",
   audit: "AUTH_LOGOUT",
   handler: async (ctx) => {
-    await revokeSession(ctx.sessionId, ctx.now);
+    await revokeSession(ctx.sessionId, ctx.now, ctx.db);
     return Response.json({ ok: true }, { headers: { "Set-Cookie": clearSessionCookieHeader() } });
   },
 });

@@ -70,10 +70,16 @@ export function BoardScreen() {
   const [rescheduling, setRescheduling] = useState<BoardRow | null>(null);
 
   const last4 = /^\d{4}$/.test(search) ? search : null;
+  // 번호 뒷 4자리만(kind=phoneLast4 — 숫자 차트번호와 섞지 않는다), 보드에 띄운 날 예약한 고객 중에서만 찾는다.
+  // 날짜로 좁히면 서버가 건수 상한을 두지 않으므로 오늘 고객이 상한 때문에 빠지지 않는다.
+  const boardDate = board.data?.date ?? null;
   const searchResult = useQuery({
-    queryKey: ["patients", "board-search", last4],
-    queryFn: () => apiFetch<{ items: PatientListItem[] }>(`/api/patients?q=${last4}&limit=50`),
-    enabled: last4 !== null,
+    queryKey: ["patients", "board-search", boardDate, last4],
+    queryFn: () =>
+      apiFetch<{ items: PatientListItem[] }>(
+        `/api/patients?${new URLSearchParams({ q: last4!, kind: "phoneLast4", appointmentDate: boardDate! })}`,
+      ),
+    enabled: last4 !== null && boardDate !== null,
     staleTime: 0,
   });
 

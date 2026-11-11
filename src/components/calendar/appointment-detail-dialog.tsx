@@ -16,7 +16,6 @@ import {
   formatKstDateLabel,
   formatKstShortDate,
   formatKstTime,
-  isValidDateKey,
   isValidTime,
   kstDateKey,
   kstDateTime,
@@ -32,18 +31,22 @@ function dateTimeLabel(iso: string): string {
 
 /**
  * 예약 상세 — 블록을 누르면 연다(GET /api/appointments/[id]). 상태 이력을 한국어로 보여 준다.
- * 대기 상태 예약은 '시간 이동' 입력으로도 옮길 수 있다(끌기 대신 키보드로).
+ * 오늘 이후의 대기 상태 예약은 '시간 이동' 입력으로도 같은 날 안에서 옮길 수 있다(끌기 대신 키보드로).
+ * 지난 날의 예약은 내원 보드에서 정리하고, 날짜를 바꾸는 것은 예약변경이다(서버도 거부한다).
  */
 export function AppointmentDetailDialog({
   appointment,
   chairs,
   canWrite,
+  today,
   onClose,
   onMoved,
 }: {
   appointment: CalendarAppointment;
   chairs: Chair[];
   canWrite: boolean;
+  /** 오늘(한국 시간) */
+  today: string;
   onClose: () => void;
   onMoved: () => Promise<unknown>;
 }) {
@@ -79,6 +82,7 @@ export function AppointmentDetailDialog({
           chairName={chairName}
           chairs={chairs}
           canWrite={canWrite}
+          today={today}
           onMoved={async () => {
             await Promise.all([onMoved(), detail.refetch()]);
           }}
@@ -93,12 +97,14 @@ function DetailBody({
   chairName,
   chairs,
   canWrite,
+  today,
   onMoved,
 }: {
   data: AppointmentDetail;
   chairName: (code: string) => string;
   chairs: Chair[];
   canWrite: boolean;
+  today: string;
   onMoved: () => Promise<void>;
 }) {
   const start = new Date(data.startAt);
@@ -132,7 +138,9 @@ function DetailBody({
         <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
       </dl>
 
-      {canWrite && isPendingStatus(data.status) && <MoveForm data={data} chairs={chairs} onMoved={onMoved} />}
+      {canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (
+        <MoveForm data={data} chairs={chairs} onMoved={onMoved} />
+      )}
 
       <section>
         <h3 className="mb-2 text-lg font-bold">상태 이력</h3>
@@ -167,10 +175,10 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** 끌기 대신 쓰는 시간 이동 입력 (PATCH /api/appointments/[id]/move) */
+/** 끌기 대신 쓰는 시간 이동 입력 (PATCH /api/appointments/[id]/move). 날짜는 그대로 — 다른 날로는 예약변경으로 옮긴다. */
 function MoveForm({ data, chairs, onMoved }: { data: AppointmentDetail; chairs: Chair[]; onMoved: () => Promise<void> }) {
   const start = new Date(data.startAt);
-  const [date, setDate] = useState(kstDateKey(start));
+  const date = kstDateKey(start);
   const [time, setTime] = useState(minutesToTime(kstMinutesOfDay(start)));
   const [chair, setChair] = useState(data.chair);
   const [duration, setDuration] = useState(String(data.durationMin));
@@ -193,8 +201,8 @@ function MoveForm({ data, chairs, onMoved }: { data: AppointmentDetail; chairs: 
     event.preventDefault();
     setDone(false);
     const minutes = Number(duration);
-    if (!isValidDateKey(date) || !isValidTime(time) || Number(time.slice(3)) % 5 !== 0) {
-      return setLocalError("날짜와 시각(5분 단위)을 확인하세요.");
+    if (!isValidTime(time) || Number(time.slice(3)) % 5 !== 0) {
+      return setLocalError("시각(5분 단위)을 확인하세요.");
     }
     if (!Number.isInteger(minutes) || minutes < 5 || minutes > 480 || minutes % 5 !== 0) {
       return setLocalError("소요시간은 5분 단위로 5~480분 사이로 입력하세요.");
@@ -215,7 +223,7 @@ function MoveForm({ data, chairs, onMoved }: { data: AppointmentDetail; chairs: 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div>
           <Label htmlFor="move-date">날짜</Label>
-          <Input id="move-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input id="move-date" type="date" value={date} readOnly aria-describedby="move-date-note" />
         </div>
         <div>
           <Label htmlFor="move-time">시각</Label>
@@ -256,6 +264,9 @@ function MoveForm({ data, chairs, onMoved }: { data: AppointmentDetail; chairs: 
           </span>
         )}
       </div>
+      <p id="move-date-note" className="mt-2 text-sm text-slate-500">
+        날짜를 바꾸려면 내원 보드의 [변경]으로 예약변경을 하세요.
+      </p>
       {localError && <FieldError>{localError}</FieldError>}
       {serverError && <FieldError>{serverError}</FieldError>}
     </form>

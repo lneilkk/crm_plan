@@ -7,7 +7,9 @@
  * - 세션 쿠키는 같은 출처라 자동으로 붙는다.
  * - 실패하면 ApiRequestError(status, code, message)를 던진다. message는 서버가 준 한국어 문구라 화면에 그대로 보여도 된다.
  * - 401은 src/app/providers.tsx가 받아서 로그인 화면으로 보낸다.
+ * - 모든 요청에 이 브라우저의 기기 id를 x-input-device로 붙인다(device-id.ts). 서버는 상태 이력에 입력 기기로 남긴다.
  */
+import { getDeviceId, INPUT_DEVICE_HEADER } from "./device-id";
 import type { NavSectionKey } from "./permissions";
 import type { StaffRole } from "@/lib/domain/staff";
 
@@ -30,9 +32,11 @@ const NETWORK_ERROR_MESSAGE = "서버에 연결하지 못했습니다. 인터넷
 export async function apiFetch<T = unknown>(url: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   let response: Response;
   try {
+    const headers: Record<string, string> = { [INPUT_DEVICE_HEADER]: getDeviceId() };
+    if (init.body !== undefined) headers["Content-Type"] = "application/json";
     response = await fetch(url, {
       method: init.method ?? "GET",
-      headers: init.body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       credentials: "same-origin",
       cache: "no-store",

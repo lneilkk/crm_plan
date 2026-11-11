@@ -11,6 +11,7 @@ import { POST as unlockRoute } from "@/app/api/staff/[id]/unlock/route";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { hashPassword } from "@/server/auth/password";
 import { hashSessionToken } from "@/server/auth/session";
+import { unlockStaffByLoginId } from "@/server/auth/unlock";
 import { seed } from "../../prisma/seed";
 import { callRoute, loginAs } from "./helpers/api";
 import { createStaff, db, resetDb } from "./helpers";
@@ -218,6 +219,23 @@ describe("잠금 해제", () => {
     expect(audits[0].detail).toMatchObject({ permission: "staff.manage", method: "POST" });
   });
 
+  it("운영자 명령(scripts/ops/staff-unlock.ts)은 아이디로 풀고 감사 행을 같은 트랜잭션에 남긴다", async () => {
+    const staff = await lockedStaff();
+    const result = await unlockStaffByLoginId(db, staff.loginId);
+    expect(result).toEqual({ ok: true, staffId: staff.id, wasLocked: true });
+    const after = await db.staff.findUniqueOrThrow({ where: { id: staff.id } });
+    expect(after.lockedAt).toBeNull();
+    expect(after.failedLoginCount).toBe(0);
+    const audits = await db.auditLog.findMany({ where: { action: "STAFF_UNLOCK" } });
+    expect(audits.map((a) => [a.staffId, a.result, a.detail])).toEqual([
+      [null, "SUCCESS", { targetStaffId: staff.id, via: "CLI", wasLocked: true }],
+    ]);
+    expect((await login(staff.loginId, PASSWORD)).status).toBe(200);
+
+    expect(await unlockStaffByLoginId(db, "no-such-login-id")).toEqual({ ok: false, reason: "NOT_FOUND" });
+    expect(await db.auditLog.count({ where: { action: "STAFF_UNLOCK" } })).toBe(1);
+  });
+
   it("없는 직원 id는 404", async () => {
     const admin = await loginAs("ADMIN");
     const id = "01900000-0000-7000-8000-000000000000";
@@ -250,13 +268,62 @@ describe("세션", () => {
     expect((await callRoute(meRoute, { cookie: front.cookie })).status).toBe(401);
   });
 
-  it("직원이 잠기거나 비활성화되면 기존 세션도 401", async () => {
-    const locked = await loginAs("FRONT");
+  it("비활성화되면 기존 세션도 401", async () => {
     const inactive = await loginAs("FRONT");
-    await db.staff.update({ where: { id: locked.staff.id }, data: { lockedAt: new Date() } });
     await db.staff.update({ where: { id: inactive.staff.id }, data: { isActive: false } });
-    expect((await callRoute(meRoute, { cookie: locked.cookie })).status).toBe(401);
     expect((await callRoute(meRoute, { cookie: inactive.cookie })).status).toBe(401);
+  });
+
+  it("잠금은 새 로그인만 막고, 로그인 중인 세션은 끊지 않는다 — 남이 5번 틀려 관리자를 쫓아낼 수 없다", async () => {
+    const admin = await staffWithPassword({ role: "ADMIN" });
+    const first = await login(admin.loginId, PASSWORD);
+    expect(first.status).toBe(200);
+    const cookie = cookieFrom(first.headers);
+
+    for (let i = 0; i < 5; i += 1) await login(admin.loginId, WRONG);
+    expect((await db.staff.findUniqueOrThrow({ where: { id: admin.id } })).lockedAt).not.toBeNull();
+
+    // 이미 로그인한 관리자는 계속 일할 수 있고, 잠긴 다른 계정을 풀 수도 있다.
+    expect((await callRoute(meRoute, { cookie })).status).toBe(200);
+    const res = await callRoute(unlockRoute, {
+      method: "POST",
+      url: `/api/staff/${admin.id}/unlock`,
+      cookie,
+      params: { id: admin.id },
+    });
+    expect(res.status).toBe(200);
+    // 새 로그인은 잠금 동안 막혔다가, 해제 뒤 된다.
+    expect((await login(admin.loginId, PASSWORD)).status).toBe(200);
+  });
+
+  it("다시 로그인하면 쿠키에 있던 이전 세션(공용 PC의 앞 직원)을 끊는다", async () => {
+    const a = await loginAs("FRONT");
+    const b = await staffWithPassword({ role: "FRONT" });
+    const res = await callRoute(loginRoute, {
+      method: "POST",
+      url: "/api/auth/login",
+      cookie: a.cookie,
+      body: { loginId: b.loginId, password: PASSWORD },
+    });
+    expect(res.status).toBe(200);
+    expect((await callRoute(meRoute, { cookie: a.cookie })).status).toBe(401);
+    expect((await db.session.findUniqueOrThrow({ where: { id: a.sessionId } })).revokedAt).not.toBeNull();
+    expect((await callRoute(meRoute, { cookie: cookieFrom(res.headers) })).status).toBe(200);
+    const audits = await loginAudits();
+    expect(audits.map((x) => [x.staffId, x.result, x.detail])).toEqual([[b.id, "SUCCESS", { previousSessionRevoked: true }]]);
+  });
+
+  it("로그인에 실패하면 쿠키에 있던 세션은 그대로 둔다", async () => {
+    const a = await loginAs("FRONT");
+    const b = await staffWithPassword({ role: "FRONT" });
+    const res = await callRoute(loginRoute, {
+      method: "POST",
+      url: "/api/auth/login",
+      cookie: a.cookie,
+      body: { loginId: b.loginId, password: WRONG },
+    });
+    expect(res.status).toBe(401);
+    expect((await callRoute(meRoute, { cookie: a.cookie })).status).toBe(200);
   });
 
   it("모르는 토큰·깨진 쿠키는 401", async () => {

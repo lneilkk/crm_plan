@@ -6,13 +6,18 @@ import { duplicatePhoneResponse } from "@/server/patients/responses";
 /**
  * 고객 검색 — T3-2. 전화번호 뒷 4자리·전체 번호·차트번호·이름. 목록은 이름·번호를 마스킹한다.
  * 감사 행에는 검색 방식 코드와 건수만 남기고 검색어는 남기지 않는다.
+ * 내원 보드는 kind=phoneLast4&appointmentDate=<그날>로 부른다: 번호 뒷 4자리만, 그날 예약한 고객 중에서만 찾는다.
  */
 export const GET = defineRoute({
   permission: "patient.read",
   audit: "PATIENT_SEARCH",
   query: searchPatientsQuery,
   handler: async (ctx) => {
-    const { kind, items } = await searchPatients(ctx.query.q, ctx.query.limit);
+    const { kind, items } = await searchPatients(ctx.query.q, {
+      limit: ctx.query.limit,
+      kind: ctx.query.kind,
+      appointmentDate: ctx.query.appointmentDate,
+    });
     ctx.touchPatients(items.map((item) => item.id));
     ctx.audit({ searchKind: kind });
     return { items };
@@ -28,7 +33,7 @@ export const POST = defineRoute({
   audit: "PATIENT_CREATE",
   body: createPatientBody,
   handler: async (ctx) => {
-    const result = await createPatient(ctx.body, ctx.staff.id);
+    const result = await createPatient(ctx.body, ctx.staff.id, ctx.db);
     if (result.kind === "duplicatePhone") return duplicatePhoneResponse(ctx, result.duplicates);
     ctx.touchPatients([result.id]);
     ctx.audit({ confirmedDuplicate: ctx.body.confirmDuplicate === true });

@@ -2,8 +2,10 @@ import "server-only";
 
 import { z } from "zod";
 import type { AuditResult } from "@/generated/prisma/client";
+import { INPUT_DEVICE_HEADER, normalizeInputDevice } from "@/lib/auth/device-id";
 import { can, type Permission } from "@/lib/auth/permissions";
 import { getActiveSession, type SessionStaff } from "@/server/auth/session";
+import { db, type DbClient } from "@/server/db";
 import { errorFields, log } from "@/server/log";
 import { type AuditAction, type AuditDetail, writeAudit } from "./audit";
 import { clientIp } from "./client-ip";
@@ -24,12 +26,21 @@ import { ApiError, apiErrorResponse, errorResponse, INTERNAL_ERROR_MESSAGE } fro
  * - audit가 "none"이 아니면 요청마다 감사 행을 정확히 한 개 쓴다(성공 SUCCESS, 검증·핸들러 실패 FAILED).
  *   patient_id는 ctx.touchPatients로 알린 환자가 정확히 한 명일 때만 채우고, detail은 { patientCount, ...ctx.audit(…) }.
  *   감사 행을 쓰지 못하면 응답하지 않고 500을 돌려준다(기록 없는 환자 정보 조회를 막기 위해).
+ * - 쓰기 요청(GET·HEAD 외)이고 audit가 "none"이 아니면 핸들러를 트랜잭션 안에서 부르고, 핸들러가 돌려준 결과의
+ *   감사 행도 같은 트랜잭션에서 쓴다. 핸들러는 DB 쓰기를 모두 ctx.db로 해야 한다. 감사 행을 쓰지 못하면 변경도
+ *   함께 취소된다(기록 없는 환자 정보 변경을 막기 위해). 핸들러가 던지면 변경은 취소되고 FAILED 행은 트랜잭션 밖에서 쓴다.
+ * - 요청 본문은 MAX_BODY_BYTES까지만 읽는다. 넘으면 413 PAYLOAD_TOO_LARGE (로그인처럼 세션 없이 부르는 API도 보호).
  * - 핸들러는 ctx.now(서버 시각)를 쓴다. 브라우저가 보낸 시각을 믿지 않는다.
  * - 처리하지 못한 에러는 500과 일반 문구로 바꾸고, 로그에는 에러 이름·코드만 남긴다.
  * - src/server/api/routes.test.ts가 모든 route.ts의 메서드가 이 함수로 만들어졌는지 검사한다.
  */
 
 export type RoutePermission = Permission | "public" | "authenticated";
+
+export type { DbClient };
+
+/** 요청 본문 상한 (바이트). 가장 큰 입력(고객 메모 등)보다 넉넉하다. */
+export const MAX_BODY_BYTES = 64 * 1024;
 
 type Schema = z.ZodType;
 type Output<S> = S extends Schema ? z.output<S> : undefined;
@@ -42,8 +53,17 @@ export type RouteContext<P extends RoutePermission, Q, B, Pa> = {
   query: Output<Q>;
   body: Output<B>;
   params: Pa extends Schema ? z.output<Pa> : Record<string, string | string[] | undefined>;
+  /** 요청 헤더 (쿠키 등). 값을 감사 행·로그에 넣지 않는다. */
+  headers: Headers;
+  /**
+   * 이 요청에서 쓸 DB 클라이언트. 감사 대상 쓰기 요청이면 감사 행과 한 트랜잭션이므로
+   * 서비스에 꼭 이 값을 넘긴다(전역 db를 쓰면 감사 행 없이 변경이 남을 수 있다).
+   */
+  db: DbClient;
   ip: string | null;
   userAgent: string | null;
+  /** 입력 기기 — 요청 헤더 x-input-device(apiFetch가 붙임). 형식이 틀리거나 없으면 null (normalizeInputDevice) */
+  inputDevice: string | null;
   /** 서버 시각. 핸들러는 이 값만 쓴다. */
   now: Date;
   /** 응답에 담기거나 바뀐 환자 id를 알린다. 감사 행의 patientCount·patient_id가 된다. */
@@ -114,48 +134,69 @@ export function defineRoute<
 
       const touched = new Set<string>();
       const extra: AuditDetail = {};
-      let response: Response;
-      let result: AuditResult = "SUCCESS";
-      try {
-        const input = await parseInput(request, context, definition);
-        const ctx = {
-          staff,
-          sessionId,
-          ...input,
-          ip,
-          userAgent,
-          now,
-          touchPatients(ids: readonly string[]) {
-            for (const id of ids) touched.add(id);
-          },
-          audit(more: AuditDetail) {
-            Object.assign(extra, more);
-          },
-        } as RouteContext<P, Q, B, Pa>;
-        const output = await definition.handler(ctx);
-        if (definition.audit === "none" && touched.size > 0) {
-          // 환자 정보를 다루면서 감사 코드를 "none"으로 선언한 API — 기록 없이 응답하지 않는다.
-          throw new Error("audit none 라우트가 환자를 다뤘습니다");
-        }
-        response = toResponse(output);
-        if (response.status >= 400) result = "FAILED";
-      } catch (error) {
-        result = "FAILED";
-        if (error instanceof ApiError) extra.errorCode = error.code;
-        response = errorToResponse(error, method, request);
-      }
-
-      if (definition.audit !== "none") {
+      const auditRow = (result: AuditResult) => {
         const patientIds = [...touched];
-        await writeAudit({
+        return {
           staffId: staff?.id ?? null,
-          action: definition.audit,
+          action: definition.audit as AuditAction,
           result,
           patientId: patientIds.length === 1 ? patientIds[0] : null,
           ip,
           userAgent,
           detail: { ...extra, patientCount: patientIds.length },
-        });
+        };
+      };
+      // 감사 대상 쓰기 요청: 변경과 감사 행을 한 트랜잭션으로 묶는다.
+      const transactional = definition.audit !== "none" && !SAFE_METHODS.has(method);
+      let response: Response;
+      let audited = false;
+      try {
+        const input = await parseInput(request, context, definition);
+        const run = async (client: DbClient): Promise<Response> => {
+          const ctx = {
+            staff,
+            sessionId,
+            ...input,
+            headers: request.headers,
+            db: client,
+            ip,
+            userAgent,
+            inputDevice: normalizeInputDevice(request.headers.get(INPUT_DEVICE_HEADER)),
+            now,
+            touchPatients(ids: readonly string[]) {
+              for (const id of ids) touched.add(id);
+            },
+            audit(more: AuditDetail) {
+              Object.assign(extra, more);
+            },
+          } as RouteContext<P, Q, B, Pa>;
+          const output = await definition.handler(ctx);
+          if (definition.audit === "none" && touched.size > 0) {
+            // 환자 정보를 다루면서 감사 코드를 "none"으로 선언한 API — 기록 없이 응답하지 않는다.
+            throw new Error("audit none 라우트가 환자를 다뤘습니다");
+          }
+          return toResponse(output);
+        };
+        if (transactional) {
+          response = await db.$transaction(async (tx) => {
+            const out = await run(tx);
+            await writeAudit(auditRow(out.status >= 400 ? "FAILED" : "SUCCESS"), tx);
+            return out;
+          });
+          audited = true;
+        } else {
+          response = await run(db);
+        }
+      } catch (error) {
+        if (error instanceof ApiError) extra.errorCode = error.code;
+        response = errorToResponse(error, method, request);
+        // 트랜잭션은 취소되었다 — 실패 행은 밖에서 쓴다.
+        if (definition.audit !== "none") await writeAudit(auditRow("FAILED"));
+        audited = true;
+      }
+
+      if (definition.audit !== "none" && !audited) {
+        await writeAudit(auditRow(response.status >= 400 ? "FAILED" : "SUCCESS"));
       }
       return response;
     } catch (error) {
@@ -193,9 +234,10 @@ async function parseInput(
 
   let body: unknown = undefined;
   if (definition.body) {
+    const text = await readBodyText(request, MAX_BODY_BYTES);
     let raw: unknown;
     try {
-      raw = JSON.parse(await request.text());
+      raw = JSON.parse(text);
     } catch {
       throw new ApiError(400, "INVALID_JSON", "요청 형식이 올바르지 않습니다.");
     }
@@ -203,6 +245,37 @@ async function parseInput(
   }
 
   return { params, query, body };
+}
+
+/**
+ * 본문을 limit 바이트까지만 읽는다. Content-Length가 크면 읽지 않고, 길이를 알리지 않은(chunked) 본문은
+ * 읽으면서 세다가 넘으면 멈춘다. 둘 다 413 PAYLOAD_TOO_LARGE.
+ */
+export async function readBodyText(request: Request, limit: number): Promise<string> {
+  const tooLarge = () => new ApiError(413, "PAYLOAD_TOO_LARGE", "요청이 너무 큽니다.");
+  const declared = request.headers.get("content-length");
+  if (declared !== null && Number(declared) > limit) throw tooLarge();
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => undefined);
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 /** 검증 실패 응답에는 필드 경로와 오류 종류만 담는다. 입력값·zod 메시지는 담지 않는다(값이 섞일 수 있어서). */

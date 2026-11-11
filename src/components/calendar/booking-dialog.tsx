@@ -7,7 +7,8 @@ import { APPOINTMENT_CHANNEL_LABEL, type AppointmentChannel } from "@/lib/domain
 import type { ClinicSettings } from "@/lib/domain/clinic";
 import { maskName } from "@/lib/masking";
 import { normalizePhone } from "@/lib/phone";
-import { type DateKey, isValidDateKey, isValidTime, kstDateTime } from "@/lib/time/kst";
+import { type DateKey, isValidDateKey, isValidTime, kstDateKey, kstDateTime } from "@/lib/time/kst";
+import { containsResidentRegistrationNumber, MEMO_GUIDE, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
 import type { DuplicatePatient, PatientListItem } from "@/server/patients/service";
 import { Badge, Button, cn, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
 import type { DoctorOption } from "./types";
@@ -81,10 +82,12 @@ export function BookingDialog({
     const found: string[] = [];
     if (!patient) found.push("고객을 고르거나 새로 등록하세요.");
     if (!isValidDateKey(date)) found.push("날짜를 확인하세요.");
+    else if (date < kstDateKey(new Date())) found.push("지난 날짜로는 예약할 수 없습니다.");
     if (!isValidTime(time) || Number(time.slice(3)) % 5 !== 0) found.push("시각은 5분 단위로 입력하세요 (예: 10:05).");
     if (!isValidDuration(durationMin)) found.push("소요시간은 5분 단위로 5~480분 사이로 입력하세요.");
     if (!chair) found.push("체어를 고르세요.");
     if (!treatmentItem) found.push("예약 항목을 고르세요.");
+    if (containsResidentRegistrationNumber(memo)) found.push(RRN_ERROR_MESSAGE);
     setErrors(found);
     if (found.length === 0) create.mutate();
   }
@@ -212,8 +215,12 @@ export function BookingDialog({
             maxLength={1000}
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
+            aria-describedby="booking-memo-guide"
             className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-base focus:border-blue-600 focus:outline-2 focus:outline-blue-200"
           />
+          <p id="booking-memo-guide" className="mt-1 text-sm text-slate-500">
+            {MEMO_GUIDE}
+          </p>
         </div>
 
         {errors.map((message) => (

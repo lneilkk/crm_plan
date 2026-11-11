@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import type { Prisma } from "@/generated/prisma/client";
+import { INPUT_DEVICE_MAX } from "@/lib/auth/device-id";
 import {
   REASON_REQUIRED_STATUSES,
   isArrivedStatus,
@@ -11,7 +11,7 @@ import {
 import { isLateArrival } from "@/lib/visit/lateness";
 import { validateTransition, type TransitionErrorCode } from "@/lib/visit/transitions";
 import { ApiError } from "@/server/api/errors";
-import { db } from "@/server/db";
+import { type DbClient, inTransaction } from "@/server/db";
 import { chairConflictError, isChairOverlapError } from "./create";
 
 /**
@@ -22,7 +22,7 @@ import { chairConflictError, isChairOverlapError } from "./create";
  * tests/integration/visit-status.test.ts가 다른 파일에서 status를 쓰는 코드가 없는지 검사한다.
  */
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbClient;
 
 export type StatusActor = { id: string };
 
@@ -50,8 +50,6 @@ export type ChangeStatusResult = {
   /** 지각내원 여부 (저장하지 않고 계산) */
   isLate: boolean;
 };
-
-const INPUT_DEVICE_MAX = 64;
 
 /** 시각·상태에 따라 지금은 안 되는 것은 409, 요청 내용이 틀린 것은 400 */
 const TRANSITION_ERROR_STATUS: Record<TransitionErrorCode, number> = {
@@ -93,12 +91,20 @@ export async function lockAppointment(tx: Tx, appointmentId: string) {
 }
 
 /**
- * 상태를 바꾸고 이력을 남긴다. client를 주면 그 트랜잭션 안에서(예약변경), 없으면 새 트랜잭션에서 실행한다.
+ * 예약의 고객 id (없으면 null). route가 서비스를 부르기 전에 ctx.touchPatients로 알려,
+ * 실패한 시도(409·404 등)의 감사 행에도 대상 고객이 남게 한다.
+ */
+export async function appointmentPatientId(client: Tx, appointmentId: string): Promise<string | null> {
+  const row = await client.appointment.findUnique({ where: { id: appointmentId }, select: { patientId: true } });
+  return row?.patientId ?? null;
+}
+
+/**
+ * 상태를 바꾸고 이력을 남긴다. client를 주면 그 트랜잭션 안에서(예약변경, route의 ctx.db), 없으면 새 트랜잭션에서 실행한다.
  * 실패는 ApiError: 404 NOT_FOUND, 409 STATUS_CHANGED, 400/409 전환 규칙 코드(transitions.ts), 409 CHAIR_CONFLICT.
  */
 export async function changeStatus(input: ChangeStatusInput, client?: Tx): Promise<ChangeStatusResult> {
-  if (client) return changeStatusIn(client, input);
-  return db.$transaction((tx) => changeStatusIn(tx, input));
+  return inTransaction(client, (tx) => changeStatusIn(tx, input));
 }
 
 async function changeStatusIn(tx: Tx, input: ChangeStatusInput): Promise<ChangeStatusResult> {
@@ -184,9 +190,13 @@ async function changeStatusIn(tx: Tx, input: ChangeStatusInput): Promise<ChangeS
  * 되돌리기 (보드의 5초 되돌리기와 이후 정정). 최신 이력의 이전 상태로 되돌린다.
  * 노쇼·당일취소로 되돌릴 때는 그 상태로 들어갔던 가장 최근 이력의 사유를 다시 쓴다.
  * 최신 이력이 예약 생성 행(이전 상태 없음)이면 409 NOTHING_TO_REVERT.
+ * client는 changeStatus와 같다(주면 그 트랜잭션 안에서).
  */
-export async function revertStatus(input: Omit<ChangeStatusInput, "to" | "reasonCode">): Promise<ChangeStatusResult> {
-  return db.$transaction(async (tx) => {
+export async function revertStatus(
+  input: Omit<ChangeStatusInput, "to" | "reasonCode">,
+  client?: Tx,
+): Promise<ChangeStatusResult> {
+  return inTransaction(client, async (tx) => {
     await lockAppointment(tx, input.appointmentId);
     const latest = await tx.visitStatusLog.findFirst({
       where: { appointmentId: input.appointmentId },

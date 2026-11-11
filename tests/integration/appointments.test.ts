@@ -11,6 +11,7 @@ import { PATCH as moveRoute } from "@/app/api/appointments/[id]/move/route";
 import { GET as listRoute, POST as createRoute } from "@/app/api/appointments/route";
 import { GET as settingsRoute } from "@/app/api/settings/route";
 import { createAppointment as createAppointmentService } from "@/server/appointments/create";
+import { ApiError } from "@/server/api/errors";
 import { sealPhone } from "@/server/crypto/pii";
 import { callRoute, loginAs } from "./helpers/api";
 import { createAppointment as insertAppointmentRow, createPatient, createStaff, db, resetDb } from "./helpers";
@@ -131,11 +132,26 @@ describe("완료 기준: 같은 체어·시간 중복 예약 차단", () => {
 });
 
 describe("createAppointment — 예약과 첫 이력은 한 트랜잭션", () => {
+  /** 약속이 거부되면 던진 값을, 성공하면 테스트를 실패시킨다 */
+  async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+    return promise.then(
+      () => expect.fail("거부되어야 한다"),
+      (error: unknown) => error,
+    );
+  }
+
+  /** 검증(ApiError)이 아니라 DB의 visit_status_log INSERT에서 난 에러인지 */
+  function expectLogInsertFailure(error: unknown) {
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(ApiError);
+    expect((error as Error).message).toContain("visitStatusLog.create");
+  }
+
   it("이력 첫 행 쓰기가 실패하면 예약 행도 남지 않는다", async () => {
     const { staff } = await loginAs("FRONT");
     const p = await fakePatient();
     // PostgreSQL text에는 NUL 문자를 넣을 수 없다 → 예약 INSERT는 성공하고 이력 INSERT만 실패한다.
-    await expect(
+    const error = await rejectionOf(
       createAppointmentService(
         {
           patientId: p.id,
@@ -147,7 +163,8 @@ describe("createAppointment — 예약과 첫 이력은 한 트랜잭션", () =>
         },
         { actorId: staff.id, inputDevice: "x\u0000y" },
       ),
-    ).rejects.toThrow();
+    );
+    expectLogInsertFailure(error);
     expect(await db.appointment.count()).toBe(0);
     expect(await db.visitStatusLog.count()).toBe(0);
   });
@@ -155,7 +172,7 @@ describe("createAppointment — 예약과 첫 이력은 한 트랜잭션", () =>
   it("호출자 트랜잭션(tx)에서 이력 쓰기가 실패하면 함께 되돌려진다", async () => {
     const { staff } = await loginAs("FRONT");
     const p = await fakePatient();
-    await expect(
+    const error = await rejectionOf(
       db.$transaction((tx) =>
         createAppointmentService(
           {
@@ -169,7 +186,8 @@ describe("createAppointment — 예약과 첫 이력은 한 트랜잭션", () =>
           { actorId: staff.id, inputDevice: "x\u0000y", tx },
         ),
       ),
-    ).rejects.toThrow();
+    );
+    expectLogInsertFailure(error);
     expect(await db.appointment.count()).toBe(0);
     expect(await db.visitStatusLog.count()).toBe(0);
   });
@@ -209,6 +227,15 @@ describe("POST /api/appointments", () => {
     expect(audits).toHaveLength(1);
     expect(audits[0]).toMatchObject({ staffId: staff.id, patientId: p.id, result: "SUCCESS" });
     expect(JSON.stringify(audits[0].detail)).not.toContain("가상");
+  });
+
+  it("형식이 틀린 x-input-device(공백 포함)는 null로 남긴다", async () => {
+    const { cookie } = await loginAs("FRONT");
+    const p = await fakePatient();
+    const res = await create(cookie, body(p.id), { "x-input-device": "front pc 1" });
+    expect(res.status).toBe(201);
+    const log = await db.visitStatusLog.findFirstOrThrow({ where: { appointmentId: res.json.appointment.id } });
+    expect(log.inputDevice).toBeNull();
   });
 
   it("x-input-device가 없으면 입력 기기는 null", async () => {
@@ -427,12 +454,12 @@ describe("PATCH /api/appointments/[id]/move", () => {
     expect((await move(cookie, id, { startAt: at("10:15") })).status).toBe(200);
   });
 
-  it("지난 날짜로는 옮길 수 없다", async () => {
+  it("다른 날짜(지난 날 포함)로는 옮길 수 없다 — 날짜 변경은 예약변경(400 USE_RESCHEDULE)", async () => {
     const { cookie, id } = await setup();
     const yesterday = kstDateTime(addDays(kstDateKey(new Date()), -1), "10:00").toISOString();
     const res = await move(cookie, id, { startAt: yesterday });
     expect(res.status).toBe(400);
-    expect(res.json.error.code).toBe("PAST_DATE");
+    expect(res.json.error.code).toBe("USE_RESCHEDULE");
   });
 
   it("대기 상태가 아닌 예약은 옮길 수 없다", async () => {

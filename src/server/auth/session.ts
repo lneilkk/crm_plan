@@ -3,7 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import type { StaffRole } from "@/lib/domain/staff";
-import { db } from "@/server/db";
+import { db, type DbClient } from "@/server/db";
 
 /**
  * 서버 세션 — 기획서 10장, T2-1(로그인), T2-3(세션 만료, 나중에).
@@ -11,7 +11,11 @@ import { db } from "@/server/db";
  * - 로그인하면 무작위 32바이트 토큰(base64url)을 만든다. 원문은 httpOnly 쿠키 "crm_session"으로만 보내고,
  *   DB(session.token_hash)에는 SHA-256만 둔다. DB가 새어도 쿠키를 만들어 낼 수 없다.
  * - 절대 수명 12시간(expires_at). last_seen_at은 1분에 한 번만 갱신한다(요청마다 쓰지 않도록).
- * - 만료·로그아웃(revoked_at)·비활성·잠긴 직원의 세션은 무효다.
+ * - 만료·로그아웃(revoked_at)·비활성 직원의 세션은 무효다.
+ * - 잠금(locked_at, 비밀번호 5회 실패)은 새 로그인만 막고 이미 로그인한 세션은 끊지 않는다(기획서 10장은 잠금만 요구).
+ *   누구나 로그인 화면에서 남의 아이디로 5번 틀려 잠글 수 있으므로, 잠금이 세션까지 끊으면 근무 중인 직원과
+ *   관리자를 모두 쫓아낼 수 있다(관리자가 모두 잠기면 화면에서 해제할 사람도 없다).
+ * - 같은 브라우저에서 다시 로그인하면 쿠키에 있던 이전 세션은 끊는다(login.ts, 공용 PC에서 직원이 바뀌는 경우).
  * - 15분 무조작 만료와 동시 세션 제한은 T2-3에서 isSessionUsable에 조건을 더한다.
  */
 
@@ -60,7 +64,7 @@ export async function createSession(
 }
 
 /** 요청의 Cookie 헤더에서 세션 토큰을 꺼낸다. 형식이 틀리면 null */
-export function sessionTokenFrom(request: Request): string | null {
+export function sessionTokenFrom(request: { headers: Headers }): string | null {
   const header = request.headers.get("cookie");
   if (!header) return null;
   for (const part of header.split(";")) {
@@ -76,14 +80,14 @@ export function sessionTokenFrom(request: Request): string | null {
 type SessionRow = {
   expiresAt: Date;
   revokedAt: Date | null;
-  staff: { isActive: boolean; lockedAt: Date | null };
+  staff: { isActive: boolean };
 };
 
-/** 세션을 아직 쓸 수 있는지. T2-3(무조작 만료)은 여기에 조건을 더한다. */
-function isSessionUsable(session: SessionRow, now: Date): boolean {
+/** 세션을 아직 쓸 수 있는지. 잠금은 보지 않는다(위 설명). T2-3(무조작 만료)은 여기에 조건을 더한다. */
+export function isSessionUsable(session: SessionRow, now: Date): boolean {
   if (session.revokedAt !== null) return false;
   if (session.expiresAt.getTime() <= now.getTime()) return false;
-  if (!session.staff.isActive || session.staff.lockedAt !== null) return false;
+  if (!session.staff.isActive) return false;
   return true;
 }
 
@@ -99,7 +103,7 @@ export async function getActiveSession(request: Request, now: Date = new Date())
       expiresAt: true,
       revokedAt: true,
       lastSeenAt: true,
-      staff: { select: { id: true, role: true, name: true, loginId: true, isActive: true, lockedAt: true } },
+      staff: { select: { id: true, role: true, name: true, loginId: true, isActive: true } },
     },
   });
   if (!session || !isSessionUsable(session, now)) return null;
@@ -116,14 +120,23 @@ export async function getActiveSession(request: Request, now: Date = new Date())
   return { sessionId: session.id, staff: { id, role, name, loginId } };
 }
 
-/** 요청을 보낸 직원. 세션이 없거나 만료·로그아웃·비활성·잠금이면 null */
+/** 요청을 보낸 직원. 세션이 없거나 만료·로그아웃·비활성이면 null */
 export async function getSessionStaff(request: Request, now: Date = new Date()): Promise<SessionStaff | null> {
   return (await getActiveSession(request, now))?.staff ?? null;
 }
 
 /** 로그아웃. session은 추가 전용 테이블이 아니므로 revoked_at을 UPDATE한다. */
-export async function revokeSession(sessionId: string, now: Date): Promise<void> {
-  await db.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: now } });
+export async function revokeSession(sessionId: string, now: Date, client: DbClient = db): Promise<void> {
+  await client.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: now } });
+}
+
+/** 토큰 원문으로 세션을 끊는다(다시 로그인할 때 쿠키에 있던 이전 세션). 끊었으면 true */
+export async function revokeSessionByToken(token: string, now: Date, client: DbClient = db): Promise<boolean> {
+  const { count } = await client.session.updateMany({
+    where: { tokenHash: hashSessionToken(token), revokedAt: null },
+    data: { revokedAt: now },
+  });
+  return count > 0;
 }
 
 function cookieAttributes(): string {

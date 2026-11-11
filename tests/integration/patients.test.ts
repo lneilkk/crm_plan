@@ -119,6 +119,35 @@ describe("T3-1 고객 등록", () => {
     expect(await db.patient.count()).toBe(1);
   });
 
+  it("차트번호는 대문자로 저장하고, 대소문자만 다른 차트번호는 409 DUPLICATE_CHART_NO로 막는다", async () => {
+    const { cookie } = await loginAs("FRONT");
+    const first = await register(cookie, { name: "가상소문자", phone: "010-0111-2222", dentwebChartNo: " f900010 " });
+    expect(first.status).toBe(201);
+    const stored = await db.patient.findUniqueOrThrow({ where: { id: first.json.id } });
+    expect(stored.dentwebChartNo).toBe("F900010");
+
+    const upper = await register(cookie, { name: "가상대문자", phone: "010-0333-4444", dentwebChartNo: "F900010" });
+    expect(upper.status).toBe(409);
+    expect(upper.json.error.code).toBe("DUPLICATE_CHART_NO");
+    const mixed = await register(cookie, { name: "가상섞임", phone: "010-0555-6666", dentwebChartNo: "f900010" });
+    expect(mixed.status).toBe(409);
+    expect(mixed.json.error.code).toBe("DUPLICATE_CHART_NO");
+    expect(await db.patient.count()).toBe(1);
+  });
+
+  it("이 변경 전에 소문자로 저장된 차트번호와도 대소문자만 다르면 409로 막는다", async () => {
+    const { cookie } = await loginAs("FRONT");
+    const legacy = await register(cookie, { name: "가상옛날", phone: "010-0111-3333", dentwebChartNo: "F900011" });
+    expect(legacy.status).toBe(201);
+    // 정규화 이전 데이터를 흉내 낸다: DB에 직접 소문자로 남긴다
+    await db.patient.update({ where: { id: legacy.json.id }, data: { dentwebChartNo: "f900011" } });
+
+    const dup = await register(cookie, { name: "가상새로", phone: "010-0333-5555", dentwebChartNo: "F900011" });
+    expect(dup.status).toBe(409);
+    expect(dup.json.error.code).toBe("DUPLICATE_CHART_NO");
+    expect(await db.patient.count()).toBe(1);
+  });
+
   it("입력 오류는 400과 필드 경로만 돌려준다 (값은 돌려주지 않는다)", async () => {
     const { cookie } = await loginAs("FRONT");
     const res = await register(cookie, { name: "", phone: "010-0123-456가", birthDate: "1990-02-30" });
@@ -219,6 +248,28 @@ describe("T3-1 고객 수정", () => {
     });
     expect(clash.status).toBe(409);
     expect(clash.json.error.code).toBe("DUPLICATE_CHART_NO");
+
+    // 대소문자만 다른 값으로 바꿔도 같은 차트번호다
+    const lower = await callRoute(PATCH, {
+      method: "PATCH",
+      url: `/api/patients/${id}`,
+      cookie,
+      params: { id },
+      body: { dentwebChartNo: "f900004" },
+    });
+    expect(lower.status).toBe(409);
+    expect(lower.json.error.code).toBe("DUPLICATE_CHART_NO");
+
+    // 자기 차트번호를 소문자로 보내면 대문자로 저장한다
+    const own = await callRoute(PATCH, {
+      method: "PATCH",
+      url: `/api/patients/${id}`,
+      cookie,
+      params: { id },
+      body: { dentwebChartNo: "f900005" },
+    });
+    expect(own.status).toBe(200);
+    expect((await db.patient.findUniqueOrThrow({ where: { id } })).dentwebChartNo).toBe("F900005");
 
     const missingId = "01900000-0000-7000-8000-000000000000";
     const missing = await callRoute(PATCH, {
@@ -359,6 +410,99 @@ describe("T3-2 고객 검색", () => {
     expect(rows[1].detail).toEqual({ patientCount: 1, searchKind: "name" });
     expect(JSON.stringify(rows)).not.toContain("홍길");
   });
+});
+
+describe("내원 보드 뒷 4자리 빠른 검색 — kind=phoneLast4, appointmentDate", () => {
+  const BOARD_DATE = "2026-11-12";
+  const boardFind = (cookie: string, q: string, extra = "") =>
+    callRoute(search, {
+      url: `/api/patients?q=${encodeURIComponent(q)}&kind=phoneLast4&appointmentDate=${BOARD_DATE}${extra}`,
+      cookie,
+    });
+  const ids = (res: { json: { items: { id: string }[] } }) => res.json.items.map((item) => item.id).sort();
+
+  it("kind=phoneLast4는 번호 뒷 4자리만 찾는다 — 차트번호 1234인 고객은 섞이지 않는다", async () => {
+    const { cookie } = await loginAs("FRONT");
+    const chart = await register(cookie, { name: "가상차트주인", phone: "010-0222-5678", dentwebChartNo: "1234" });
+    const phone = await register(cookie, { name: "가상번호주인", phone: "010-0333-1234" });
+    await createAppointment({ patientId: chart.json.id, startAt: new Date("2026-11-12T01:00:00Z"), chair: "C1" });
+    await createAppointment({ patientId: phone.json.id, startAt: new Date("2026-11-12T01:00:00Z"), chair: "C2" });
+    // 자동 판별은 차트번호 일치도 함께 찾는다(고객 화면 검색은 그대로)
+    expect(ids(await find(cookie, "1234"))).toEqual([chart.json.id, phone.json.id].sort());
+    // 보드 검색은 번호 뒷자리만
+    expect(ids(await callRoute(search, { url: "/api/patients?q=1234&kind=phoneLast4", cookie }))).toEqual([phone.json.id]);
+    expect(ids(await boardFind(cookie, "1234"))).toEqual([phone.json.id]);
+  });
+
+  it("그날 예약한 고객만, 건수 상한 없이 — 같은 뒷자리 고객이 상한보다 많아도 그날 고객을 놓치지 않는다", async () => {
+    const { cookie } = await loginAs("FRONT");
+    // 뒷자리 7777인 고객 55명(가짜 번호 010-0XXX-7777). 가장 먼저 등록한 고객만 그날 예약이 있다.
+    const base = Date.parse("2026-01-01T00:00:00Z");
+    const patients = [];
+    for (let i = 0; i < 55; i += 1) {
+      patients.push(
+        await createPatient({
+          ...sealPhone(`010-0${String(100 + i).padStart(3, "0")}-7777`),
+          createdAt: new Date(base + i * 60_000),
+        }),
+      );
+    }
+    const [target, otherDay] = patients;
+    await createAppointment({ patientId: target.id, startAt: new Date("2026-11-12T00:30:00Z") }); // 한국 시간 09:30
+    // 2026-11-11T14:30Z는 한국 시간 전날 23:30 — 그날이 아니다
+    await createAppointment({ patientId: otherDay.id, startAt: new Date("2026-11-11T14:30:00Z") });
+
+    // 날짜로 좁히지 않으면 최근 등록 순 50건 상한에 걸려 그날 고객이 빠진다(이 문제를 막으려는 것)
+    const capped = await callRoute(search, { url: "/api/patients?q=7777&kind=phoneLast4&limit=50", cookie });
+    expect(capped.json.items).toHaveLength(50);
+    expect(ids(capped)).not.toContain(target.id);
+
+    const res = await boardFind(cookie, "7777", "&limit=1");
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual([target.id]);
+    expect(ids(await boardFind(cookie, "8888"))).toEqual([]);
+  });
+
+  it("감사 행·권한은 그대로: PATIENT_SEARCH 한 행(last4, 건수, 고객 id), 의사도 조회 가능, 세션 없으면 401", async () => {
+    const doctor = await loginAs("DOCTOR");
+    const p = await createPatient({ ...sealPhone("010-0444-2468"), name: "가상감사" });
+    await createAppointment({ patientId: p.id, startAt: new Date("2026-11-12T02:00:00Z") });
+
+    const res = await boardFind(doctor.cookie, "2468");
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual([p.id]);
+    const rows = await auditRows("PATIENT_SEARCH");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ result: "SUCCESS", staffId: doctor.staff.id, patientId: p.id });
+    expect(rows[0].detail).toEqual({ patientCount: 1, searchKind: "last4" });
+    expect(JSON.stringify(rows)).not.toContain("2468");
+
+    expect((await callRoute(search, { url: `/api/patients?q=2468&kind=phoneLast4&appointmentDate=${BOARD_DATE}` })).status).toBe(401);
+  });
+
+  it("kind=phoneLast4인데 숫자 4개가 아니거나, 날짜가 틀리거나, kind 없이 날짜만 보내면 400 (FAILED 감사 행)", async () => {
+    const { cookie } = await loginAs("FRONT");
+    for (const url of [
+      "/api/patients?q=12a4&kind=phoneLast4",
+      "/api/patients?q=12345&kind=phoneLast4",
+      "/api/patients?q=&kind=phoneLast4",
+      "/api/patients?q=1234&kind=chart",
+      "/api/patients?q=1234&kind=phoneLast4&appointmentDate=2026-02-30",
+      // 날짜 필터는 뒷 4자리 검색 전용 — 빈 검색어로 그날 고객 전체를 상한 없이 받을 수 없다
+      `/api/patients?appointmentDate=${BOARD_DATE}`,
+      `/api/patients?q=가상&appointmentDate=${BOARD_DATE}`,
+    ]) {
+      const res = await callRoute(search, { url, cookie });
+      expect(res.status, url).toBe(400);
+      expect(res.json.error.code, url).toBe("VALIDATION_FAILED");
+    }
+    const rows = await auditRows("PATIENT_SEARCH");
+    expect(rows.map((r) => r.result)).toEqual(Array(7).fill("FAILED"));
+  });
+
+  function find(cookie: string, q: string) {
+    return callRoute(search, { url: `/api/patients?q=${encodeURIComponent(q)}`, cookie });
+  }
 });
 
 describe("T3-2 완료 기준 — 가짜 데이터 500명에서 0.5초 이내", () => {

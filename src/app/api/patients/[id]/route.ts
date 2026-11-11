@@ -24,8 +24,9 @@ export const PATCH = defineRoute({
   params: patientIdParams,
   body: updatePatientBody,
   handler: async (ctx) => {
-    const result = await updatePatient(ctx.params.id, ctx.body);
+    // 실패(404·차트번호 중복 등)한 시도도 대상 고객이 감사 행에 남도록 먼저 알린다.
     ctx.touchPatients([ctx.params.id]);
+    const result = await updatePatient(ctx.params.id, ctx.body, ctx.db);
     if (result.kind === "duplicatePhone") return duplicatePhoneResponse(ctx, result.duplicates);
     ctx.audit({ fields: Object.keys(ctx.body).filter((key) => key !== "confirmDuplicate").length });
     return { id: result.id };
