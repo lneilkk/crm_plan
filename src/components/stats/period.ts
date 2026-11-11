@@ -3,7 +3,16 @@
  * 서버 한도(src/server/stats/visit-report.ts의 MAX_STATS_DAYS)와 같은 366일을 화면에서도 먼저 검사한다.
  */
 import type { StatsUnit } from "@/lib/stats/visit-stats";
-import { addDays, diffDays, isValidDateKey, kstMonthKey, kstWeekStart, type DateKey } from "@/lib/time/kst";
+import {
+  addDays,
+  diffDays,
+  isValidDateKey,
+  KOREAN_WEEKDAYS,
+  kstMonthKey,
+  kstWeekday,
+  kstWeekStart,
+  type DateKey,
+} from "@/lib/time/kst";
 
 export const PERIOD_PRESETS = [
   { key: "thisWeek", label: "이번 주" },
@@ -64,7 +73,7 @@ export function periodError(period: Period): string | null {
   return null;
 }
 
-/** 구간 키를 화면 표시로: 일 "11/3 (월)", 주 "11/3 주", 월 "2026년 11월" */
+/** 구간 키를 화면 표시로: 일 "11/2 (월)", 주 "11/2 주"(그 주 월요일), 월 "2026년 11월" */
 export function bucketLabel(key: string, unit: StatsUnit): string {
   if (unit === "month") {
     const [y, m] = key.split("-");
@@ -72,5 +81,5 @@ export function bucketLabel(key: string, unit: StatsUnit): string {
   }
   const [, m, d] = key.split("-");
   const short = `${Number(m)}/${Number(d)}`;
-  return unit === "week" ? `${short} 주` : short;
+  return unit === "week" ? `${short} 주` : `${short} (${KOREAN_WEEKDAYS[kstWeekday(key)]})`;
 }

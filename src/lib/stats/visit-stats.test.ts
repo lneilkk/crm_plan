@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/lib/domain/appointment";
 import { kstDateTime } from "@/lib/time/kst";
-import { bucketVisits, formatRate, summarizeVisits, type VisitRow, type VisitStats } from "./visit-stats";
+import {
+  bucketKeysInRange,
+  bucketVisits,
+  emptyVisitStats,
+  fillBucketGaps,
+  formatRate,
+  summarizeVisits,
+  type VisitRow,
+  type VisitStats,
+} from "./visit-stats";
 
 /**
  * 가짜 예약 31건 — 손 계산용 표. (사람을 식별하는 값은 없다: 시각·상태·도착 시각뿐)
@@ -401,6 +410,97 @@ describe("bucketVisits", () => {
     expect(bucketVisits([], { unit: "day", ...OPTIONS })).toEqual([]);
     expect(bucketVisits([], { unit: "week", ...OPTIONS })).toEqual([]);
     expect(bucketVisits([], { unit: "month", ...OPTIONS })).toEqual([]);
+  });
+});
+
+describe("bucketKeysInRange", () => {
+  it("일: 양 끝을 포함해 하루도 빠짐없이", () => {
+    expect(bucketKeysInRange("2026-10-30", "2026-11-02", "day")).toEqual([
+      "2026-10-30",
+      "2026-10-31",
+      "2026-11-01",
+      "2026-11-02",
+    ]);
+    expect(bucketKeysInRange("2026-11-03", "2026-11-03", "day")).toEqual(["2026-11-03"]);
+  });
+
+  it("주: from이 속한 주의 월요일부터 7일 간격 (2026-10-22는 목요일)", () => {
+    expect(bucketKeysInRange("2026-10-22", "2026-11-09", "week")).toEqual([
+      "2026-10-19",
+      "2026-10-26",
+      "2026-11-02",
+      "2026-11-09",
+    ]);
+    // 일요일로 끝나면 그 주까지만
+    expect(bucketKeysInRange("2026-10-19", "2026-11-08", "week")).toEqual(["2026-10-19", "2026-10-26", "2026-11-02"]);
+  });
+
+  it("월: 해를 넘기고, 31일·2월 말에서도 달을 건너뛰지 않는다", () => {
+    expect(bucketKeysInRange("2026-11-30", "2027-03-01", "month")).toEqual([
+      "2026-11",
+      "2026-12",
+      "2027-01",
+      "2027-02",
+      "2027-03",
+    ]);
+    expect(bucketKeysInRange("2026-01-31", "2026-01-31", "month")).toEqual(["2026-01"]);
+  });
+
+  it("최대 기간 366일이면 일 구간 366개", () => {
+    const keys = bucketKeysInRange("2025-11-11", "2026-11-11", "day");
+    expect(keys).toHaveLength(366);
+    expect(keys[0]).toBe("2025-11-11");
+    expect(keys.at(-1)).toBe("2026-11-11");
+  });
+
+  it("시작일이 종료일보다 늦으면 빈 배열", () => {
+    expect(bucketKeysInRange("2026-11-02", "2026-11-01", "day")).toEqual([]);
+  });
+});
+
+describe("fillBucketGaps", () => {
+  it("예약이 없는 날(일요일 등)을 비율 null인 빈 구간으로 채운다", () => {
+    const buckets = bucketVisits(ROWS, { unit: "day", ...OPTIONS });
+    const filled = fillBucketGaps(buckets, { from: "2026-10-19", to: "2026-11-08" }, "day");
+    expect(filled).toHaveLength(21);
+    expect(filled.map((b) => b.key)).toEqual(bucketKeysInRange("2026-10-19", "2026-11-08", "day"));
+    // 있던 구간은 그대로
+    for (const bucket of buckets) expect(filled.find((b) => b.key === bucket.key)).toEqual(bucket);
+    // 빈 날(10-21, 일요일 11-08 등)은 모두 0, 비율 null
+    const empty = emptyVisitStats();
+    expect(filled.find((b) => b.key === "2026-10-21")?.stats).toEqual(empty);
+    expect(filled.find((b) => b.key === "2026-11-08")?.stats).toEqual(empty);
+    expect(empty.booked).toBe(0);
+    expect([empty.arrivalRate, empty.noShowRate, empty.sameDayCancelRate, empty.lateRate]).toEqual([null, null, null, null]);
+  });
+
+  it("주·월 단위도 기간 전체를 덮는다", () => {
+    const weekly = bucketVisits(ROWS, { unit: "week", ...OPTIONS });
+    const weeks = fillBucketGaps(weekly, { from: "2026-10-01", to: "2026-11-11" }, "week");
+    expect(weeks.map((b) => b.key)).toEqual([
+      "2026-09-28",
+      "2026-10-05",
+      "2026-10-12",
+      "2026-10-19",
+      "2026-10-26",
+      "2026-11-02",
+      "2026-11-09",
+    ]);
+    expect(weeks[0].stats.arrivalRate).toBeNull();
+    const monthly = bucketVisits(ROWS, { unit: "month", ...OPTIONS });
+    const months = fillBucketGaps(monthly, { from: "2026-09-15", to: "2026-12-01" }, "month");
+    expect(months.map((b) => [b.key, b.stats.booked])).toEqual([
+      ["2026-09", 0],
+      ["2026-10", 15],
+      ["2026-11", 8],
+      ["2026-12", 0],
+    ]);
+  });
+
+  it("예약이 하나도 없으면 전부 빈 구간", () => {
+    const filled = fillBucketGaps([], { from: "2026-11-09", to: "2026-11-11" }, "day");
+    expect(filled.map((b) => b.key)).toEqual(["2026-11-09", "2026-11-10", "2026-11-11"]);
+    expect(filled.every((b) => b.stats.booked === 0 && b.stats.arrivalRate === null)).toBe(true);
   });
 });
 

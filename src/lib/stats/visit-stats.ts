@@ -30,7 +30,7 @@
  */
 
 import { isArrivedStatus, isPendingStatus, type AppointmentStatus } from "@/lib/domain/appointment";
-import { kstDateKey, kstMonthKey, kstWeekStart } from "@/lib/time/kst";
+import { addDays, diffDays, kstDateKey, kstMonthKey, kstWeekStart, type DateKey } from "@/lib/time/kst";
 import { isLateArrival } from "@/lib/visit/lateness";
 
 /** 집계 입력 1건 — 예약 시각, 상태, 내원 입력 시각 */
@@ -160,6 +160,46 @@ export function bucketVisits(
   }
   // 키는 자릿수가 고정된 "YYYY-MM(-DD)"라서 문자열 정렬이 곧 날짜순이다.
   return [...groups.keys()].sort().map((key) => ({ key, stats: summarizeVisits(groups.get(key) ?? [], options) }));
+}
+
+/** 예약이 하나도 없는 구간의 집계 — 모든 개수 0, 모든 비율 null */
+export function emptyVisitStats(): VisitStats {
+  return summarizeVisits([], { asOf: new Date(0), lateToleranceMin: 0 });
+}
+
+/**
+ * from~to(한국 시간 날짜, 양 끝 포함)에 걸치는 일·주·월 구간 키를 빠짐없이 오름차순으로 돌려준다.
+ * 주는 from이 속한 주의 월요일부터, 월은 from이 속한 달부터 시작한다. from이 to보다 늦으면 빈 배열.
+ */
+export function bucketKeysInRange(from: DateKey, to: DateKey, unit: StatsUnit): string[] {
+  const keys: string[] = [];
+  if (diffDays(from, to) < 0) return keys;
+  if (unit === "month") {
+    const last = kstMonthKey(to);
+    // 매달 1일로 옮겨 가며 달 키를 모은다 (말일 + 1일 = 다음 달 1일)
+    for (let day = `${kstMonthKey(from)}-01`; kstMonthKey(day) <= last; day = addDays(`${kstMonthKey(day)}-01`, 31)) {
+      keys.push(kstMonthKey(day));
+    }
+    return keys;
+  }
+  const step = unit === "week" ? 7 : 1;
+  for (let day = unit === "week" ? kstWeekStart(from) : from; diffDays(day, to) >= 0; day = addDays(day, step)) {
+    keys.push(day);
+  }
+  return keys;
+}
+
+/**
+ * 예약이 없어 빠진 구간(일요일·휴일 등)을 빈 집계(비율 null)로 채워 기간 전체의 구간을 돌려준다.
+ * 그래프가 빈 구간에서 선을 끊고, x축이 기간 전체를 고르게 덮도록 하는 데 쓴다.
+ */
+export function fillBucketGaps(
+  buckets: readonly VisitBucket[],
+  range: { from: DateKey; to: DateKey },
+  unit: StatsUnit,
+): VisitBucket[] {
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  return bucketKeysInRange(range.from, range.to, unit).map((key) => byKey.get(key) ?? { key, stats: emptyVisitStats() });
 }
 
 /** 비율을 "83.3%"(소수 첫째 자리)로, 값이 없으면 "-"로 표시한다 */

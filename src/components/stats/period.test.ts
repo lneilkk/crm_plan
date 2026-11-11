@@ -49,8 +49,14 @@ describe("periodError", () => {
 
 describe("bucketLabel", () => {
   it("일·주·월", () => {
-    expect(bucketLabel("2026-11-03", "day")).toBe("11/3");
+    expect(bucketLabel("2026-11-03", "day")).toBe("11/3 (화)");
     expect(bucketLabel("2026-11-02", "week")).toBe("11/2 주");
     expect(bucketLabel("2026-11", "month")).toBe("2026년 11월");
+  });
+
+  it("일 라벨에는 한국어 요일이 붙는다 (일요일·해 바뀜)", () => {
+    expect(bucketLabel("2026-11-08", "day")).toBe("11/8 (일)");
+    expect(bucketLabel("2026-11-09", "day")).toBe("11/9 (월)");
+    expect(bucketLabel("2027-01-01", "day")).toBe("1/1 (금)");
   });
 });

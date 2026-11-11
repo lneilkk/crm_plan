@@ -26,7 +26,8 @@ const PLOT_H = H - M.top - M.bottom;
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1];
 /** 구간이 이보다 많으면 점을 그리지 않는다(선만) */
 const MAX_MARKED_POINTS = 31;
-const MAX_X_LABELS = 8;
+/** x축 라벨 최대 개수 — 일 라벨 "11/30 (월)"이 겹치지 않을 만큼 */
+const MAX_X_LABELS = 7;
 
 function MarkerShape({ shape, x, y, color }: { shape: Marker; x: number; y: number; color: string }) {
   const common = { fill: color, stroke: "#ffffff", strokeWidth: 1.5 };
@@ -60,7 +61,16 @@ function linePath(points: ({ x: number; y: number } | null)[]): string {
   return d.trim();
 }
 
-/** 구간별 네 비율 선 그래프 (0~100%). 마우스를 올리면 그 구간의 값이 보인다. 같은 숫자는 아래 표에도 있다. */
+/** 앞뒤 구간 모두 값이 없는 점 — 선으로 이어지지 않아 점을 그려야만 보인다 */
+function isIsolated(points: readonly (unknown | null)[], i: number): boolean {
+  return points[i] !== null && (points[i - 1] ?? null) === null && (points[i + 1] ?? null) === null;
+}
+
+/**
+ * 구간별 네 비율 선 그래프 (0~100%). 마우스를 올리면 그 구간의 값이 보인다. 같은 숫자는 아래 표에도 있다.
+ * buckets는 기간 전체의 구간이어야 한다(fillBucketGaps로 빈 구간을 채운 것). x 위치를 순번으로 정하므로,
+ * 빈 구간이 빠져 있으면 그 앞뒤 점이 선으로 이어져 버린다.
+ */
 export function RateChart({ buckets, unit }: { buckets: VisitBucket[]; unit: StatsUnit }) {
   const [active, setActive] = useState<number | null>(null);
   const n = buckets.length;
@@ -123,7 +133,7 @@ export function RateChart({ buckets, unit }: { buckets: VisitBucket[]; unit: Sta
                   strokeLinejoin="round"
                 />
                 {points.map((point, i) =>
-                  point && (showMarkers || i === active || points.filter(Boolean).length === 1) ? (
+                  point && (showMarkers || i === active || isIsolated(points, i)) ? (
                     <MarkerShape key={i} shape={series.marker} x={point.x} y={point.y} color={series.color} />
                   ) : null,
                 )}
@@ -151,7 +161,7 @@ export function RateChart({ buckets, unit }: { buckets: VisitBucket[]; unit: Sta
         )}
       </div>
       <figcaption className="text-sm text-slate-600">
-        비율이 없는 구간(분모 0)은 선이 끊깁니다. 정확한 숫자는 아래 구간별 표에 있습니다.
+        예약이 없거나 비율을 낼 수 없는 구간(분모 0)은 선이 끊깁니다. 정확한 숫자는 아래 구간별 표에 있습니다.
       </figcaption>
     </figure>
   );

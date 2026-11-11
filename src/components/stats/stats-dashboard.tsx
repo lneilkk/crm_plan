@@ -5,7 +5,7 @@ import { useState } from "react";
 import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
 import { can } from "@/lib/auth/permissions";
 import { APPOINTMENT_CHANNEL_LABEL } from "@/lib/domain/appointment";
-import { formatRate, type StatsUnit, type VisitStats } from "@/lib/stats/visit-stats";
+import { fillBucketGaps, formatRate, type StatsUnit, type VisitStats } from "@/lib/stats/visit-stats";
 import { formatKstDateLabel, kstDateKey } from "@/lib/time/kst";
 import type { VisitReport } from "@/server/stats/visit-report";
 import {
@@ -36,8 +36,24 @@ import { RateChart } from "./rate-chart";
 export function StatsDashboard() {
   const me = useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: 60_000 });
   if (me.isPending) return <Spinner showLabel />;
-  if (me.isError || !can(me.data.role, "stats.read")) return <NoPermission />;
+  if (me.isError) {
+    // 403(권한 없음)만 권한 안내로, 네트워크 오류·서버 오류는 다시 시도할 수 있게 보여 준다.
+    if (me.error instanceof ApiRequestError && me.error.status === 403) return <NoPermission />;
+    return <LoadError message={me.error instanceof ApiRequestError ? me.error.message : undefined} onRetry={() => me.refetch()} />;
+  }
+  if (!can(me.data.role, "stats.read")) return <NoPermission />;
   return <Dashboard />;
+}
+
+function LoadError({ message, onRetry }: { message?: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4">
+      <p className="text-red-800">{message ?? "통계 화면을 불러오지 못했습니다. 다시 시도하세요."}</p>
+      <Button variant="secondary" onClick={onRetry}>
+        다시 시도
+      </Button>
+    </div>
+  );
 }
 
 function NoPermission() {
@@ -149,12 +165,7 @@ function Dashboard() {
       </Card>
 
       {stats.isError && !(stats.error instanceof ApiRequestError && stats.error.status === 403) ? (
-        <div className="flex flex-col items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-red-800">{stats.error.message}</p>
-          <Button variant="secondary" onClick={() => stats.refetch()}>
-            다시 시도
-          </Button>
-        </div>
+        <LoadError message={stats.error.message} onRetry={() => stats.refetch()} />
       ) : stats.data ? (
         <Report report={stats.data} stale={stats.isPlaceholderData} />
       ) : stats.isPending && error === null ? (
@@ -198,13 +209,14 @@ function Report({ report, stale }: { report: VisitReport; stale: boolean }) {
         {report.buckets.length === 0 ? (
           <EmptyState title="이 기간에는 예약이 없습니다" />
         ) : (
-          <RateChart buckets={report.buckets} unit={report.unit} />
+          <RateChart buckets={fillBucketGaps(report.buckets, report.range, report.unit)} unit={report.unit} />
         )}
       </Card>
 
       {report.buckets.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-bold text-slate-900">구간별 표</h2>
+          <p className="text-sm text-slate-600">예약이 1건이라도 있는 구간만 보여 줍니다.</p>
           <StatsTable
             firstHeader="구간"
             rows={report.buckets.map((bucket) => ({ key: bucket.key, label: bucketLabel(bucket.key, report.unit), stats: bucket.stats }))}
