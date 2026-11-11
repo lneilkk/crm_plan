@@ -49,6 +49,7 @@
 | `npm run fake:data` | 가짜 환자 500명과 약 3개월분 예약·내원 이력을 DB에 넣음(`FAKE_DATA_ALLOWED=true`일 때만, 시드 계정 필요). 실행마다 새 seed. 옵션은 `--` 뒤에: `--seed <n>`·`--now <ISO 시각>`(재현), `--patients <n>`, `--append`(환자가 있어도 더 넣기). 출력은 건수와 seed뿐 |
 | `npm run db:fresh` | 개발 DB를 처음부터: `db:reset` → `db:seed` → `fake:data`. 개발 DB의 데이터가 모두 지워짐(개발자 전용) |
 | `npm run test:integration` | DB 통합 테스트(`tests/integration/`). 실행마다 임시 DB `crm_test_*`를 만들고 끝나면 지움. 개발 DB는 건드리지 않음 |
+| `npm run test:e2e` | 브라우저 시나리오 테스트(`tests/e2e/`, Playwright). 별도 DB `crm_e2e`를 새로 만들고 개발 서버를 127.0.0.1:3105에 띄움. 실행 중에는 이 폴더에서 `npm run dev`를 같이 돌리지 않음 |
 | `npm run db:test:clean` | 비정상 종료로 남은 `crm_test_*` DB 삭제(실행 중인 테스트의 DB는 남김) |
 
 ## 폴더 구조
@@ -63,7 +64,7 @@ crm_plan/
 │   │   ├── (auth)/     로그인 등 로그인 전 화면
 │   │   ├── (app)/      로그인 후 화면 (내원 보드, 캘린더, 고객, 통계)
 │   │   └── api/        API — route.ts만 사용
-│   ├── components/     화면 컴포넌트 (ui/ 는 shadcn 기본 컴포넌트)
+│   ├── components/     화면 컴포넌트 (ui/ 는 직접 만든 Tailwind 기본 컴포넌트, 사용법은 ui/index.ts)
 │   ├── lib/            서버·브라우저 공용 순수 로직 (상태 전환, 통계 산식, 마스킹, 시간)
 │   ├── server/         서버 전용 코드 (DB, 인증, 암호화, 감사 로그, API 공통 계층, 서비스)
 │   └── generated/      Prisma 클라이언트 (자동 생성, git 제외)
