@@ -23,6 +23,7 @@
     "db:fresh": "tsx scripts/fake-data/allowed.ts && npm run db:reset -- --force && npm run db:seed && npm run fake:data",
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "db:test:clean": "tsx tests/integration/support/clean-test-dbs.ts",
+    "test:e2e": "tsx scripts/e2e/setup-db.ts && PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright playwright test",
     "postinstall": "prisma generate",
     "check": "npm run lint && npm run typecheck && npm run test"
   },
