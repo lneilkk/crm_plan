@@ -41,6 +41,15 @@
 | `npm run db:check` | `.env`의 `DATABASE_URL`로 접속해 서버 버전 출력 (성공 0, 실패 1) |
 | `npm run db:psql` | DB 컨테이너 안에서 psql 열기. 인자는 `--` 뒤에 붙임 (예: `npm run db:psql -- -c "select 1"`) |
 | `npm run setup:env` | `.env.example`로 `.env` 생성(비밀값 무작위, 권한 600). 이미 있으면 바꾸지 않고 빠진 변수 이름만 알려 줌 |
+| `npm run db:generate` | Prisma 클라이언트 생성(`src/generated/prisma`). DB·`DATABASE_URL` 없이 동작하며 `npm install` 뒤에 자동 실행됨 |
+| `npm run db:migrate` | 스키마 변경으로 새 마이그레이션을 만들고 개발 DB에 적용(`prisma migrate dev`). 끝나면 `db:generate`를 따로 실행 |
+| `npm run db:deploy` | 아직 적용하지 않은 마이그레이션만 적용(`prisma migrate deploy`, CI·운영용) |
+| `npm run db:reset` | 개발 DB를 비우고 마이그레이션을 처음부터 다시 적용(데이터 모두 삭제, 개발자 전용) |
+| `npm run db:seed` | 시드(`prisma/seed.ts`): 병원 기본 설정(없을 때만)과 역할별 테스트 계정(`FAKE_DATA_ALLOWED=true`일 때만, 비밀번호는 `.env`의 `SEED_STAFF_PASSWORD`). 다시 실행해도 중복 없이 계정 비밀번호·잠금만 초기화 |
+| `npm run fake:data` | 가짜 환자 500명과 약 3개월분 예약·내원 이력을 DB에 넣음(`FAKE_DATA_ALLOWED=true`일 때만, 시드 계정 필요). 실행마다 새 seed. 옵션은 `--` 뒤에: `--seed <n>`·`--now <ISO 시각>`(재현), `--patients <n>`, `--append`(환자가 있어도 더 넣기). 출력은 건수와 seed뿐 |
+| `npm run db:fresh` | 개발 DB를 처음부터: `db:reset` → `db:seed` → `fake:data`. 개발 DB의 데이터가 모두 지워짐(개발자 전용) |
+| `npm run test:integration` | DB 통합 테스트(`tests/integration/`). 실행마다 임시 DB `crm_test_*`를 만들고 끝나면 지움. 개발 DB는 건드리지 않음 |
+| `npm run db:test:clean` | 비정상 종료로 남은 `crm_test_*` DB 삭제(실행 중인 테스트의 DB는 남김) |
 
 ## 폴더 구조
 

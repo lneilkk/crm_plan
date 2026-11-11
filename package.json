@@ -14,6 +14,16 @@
     "db:down": "node scripts/dev/db-down.mjs",
     "db:check": "node scripts/dev/db-check.mjs",
     "db:psql": "node scripts/dev/db-psql.mjs",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset",
+    "db:seed": "prisma db seed",
+    "fake:data": "tsx --conditions=react-server scripts/fake-data/run.ts",
+    "db:fresh": "tsx scripts/fake-data/allowed.ts && npm run db:reset -- --force && npm run db:seed && npm run fake:data",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "db:test:clean": "tsx tests/integration/support/clean-test-dbs.ts",
+    "postinstall": "prisma generate",
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
