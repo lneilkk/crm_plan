@@ -16,8 +16,39 @@ Next.js(화면 + API) + PostgreSQL + Prisma로 만든 단일 애플리케이션�
 npm install
 npm run db:up    # 로컬 PostgreSQL 띄우기 (127.0.0.1:54329). 처음이면 .env도 만든다
 npm run db:check # 앱이 쓰는 DATABASE_URL로 접속되는지 확인
+npm run db:deploy # 마이그레이션 적용
+npm run db:seed  # 병원 기본 설정과 역할별 테스트 계정 만들기
+npm run fake:data # 가짜 환자 500명과 약 3개월분 예약·내원 이력 넣기
 npm run dev      # http://localhost:3100
 ```
+
+개발 DB를 처음 상태로 다시 만들 때는 `npm run db:fresh` 하나로 된다(`db:reset` → `db:seed` → `fake:data`, 기존 데이터는 모두 지워진다). DB를 지우기 전에 `.env`의 `FAKE_DATA_ALLOWED=true`를 먼저 확인하고, 없으면 아무것도 지우지 않고 멈춘다.
+
+### 가짜 데이터
+
+`npm run fake:data`가 `scripts/fake-data/`의 생성기로 만든 데이터만 넣는다. 실제 환자 데이터는 쓰지 않는다.
+
+- 이름은 성·음절을 무작위로 조합한 것이고, 전화번호는 가입자에게 배정되지 않는 `010-0XXX-XXXX` 대역이다. 모든 환자에 `가짜데이터` 태그가 붙는다.
+- 전화번호·생년월일은 앱과 같은 방식으로 암호화해 넣는다(`.env`의 `PII_ENC_KEY`·`PII_HMAC_KEY`).
+- `.env`에 `FAKE_DATA_ALLOWED=true`가 있고 `npm run db:seed`로 테스트 계정을 만든 뒤에만 실행된다.
+- 실행할 때마다 새 seed로 다른 데이터를 만든다. 출력에 seed와 기준 시각이 나오므로 `npm run fake:data -- --seed <n> --now <시각>`으로 같은 데이터를 다시 만들 수 있다. `--patients <n>`으로 환자 수(기본 500)를 바꾼다.
+- 환자가 이미 있으면 멈춘다. 더 넣으려면 `--append`(기존 예약과 체어·시간이 겹치는 예약은 빼고 넣는다), 처음부터 다시 하려면 `npm run db:fresh`.
+- 내원 상태 이력과 감사 로그는 지우지 않는 것이 규칙이라(절대 규칙 5) 가짜 데이터만 골라 지우는 명령은 없다. 다시 시작할 때는 개발 DB를 새로 만든다.
+
+### 테스트 계정
+
+`npm run db:seed`가 만든다. 비밀번호는 모두 `.env`의 `SEED_STAFF_PASSWORD` 값이다(`npm run db:up`이 무작위로 만든다).
+
+| 아이디 | 역할 |
+| --- | --- |
+| `admin` | 관리자 |
+| `doctor1`, `doctor2` | 의사 |
+| `front1` | 프론트 |
+| `counselor1` | 상담 |
+
+- 계정은 `.env`에 `FAKE_DATA_ALLOWED=true`가 있을 때만 만든다. 실제 운영 환경에는 이 변수를 두지 않으므로 테스트 계정이 생기지 않는다(병원 설정만 만든다).
+- 다시 실행하면 같은 아이디의 비밀번호를 현재 `SEED_STAFF_PASSWORD`로 다시 정하고, 잠금·실패 횟수를 풀고, 다시 활성화한다. 계정은 늘어나지 않는다.
+- 병원 설정은 없을 때만 기본값으로 만든다. 설정 화면에서 바꾼 값은 다시 시드해도 그대로 남는다.
 
 ### 로컬 DB
 
