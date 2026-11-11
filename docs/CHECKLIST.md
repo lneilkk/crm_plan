@@ -8,7 +8,7 @@ Task 정의와 완료 기준은 [Task.md](Task.md), 기획 기준은 [Proposal.m
 - 🔄 진행중 — 작업 중이거나, 구현은 끝났지만 확인하지 못한 완료 기준이 남음 (남은 것은 검증 메모에 적음)
 - ⬜ 미완 — 시작 전
 
-**현황** (2026-11-11 기준): R1 20개 중 완료 5 · 진행중 5 · 미완 10 / 전체 53개 중 완료 5
+**현황** (2026-11-11 기준): R1 20개 중 완료 8 · 진행중 2 · 미완 10 / 전체 53개 중 완료 8
 
 ## R1. 프로토타입 (가짜 데이터만) — 이번 진행 범위
 
@@ -18,10 +18,10 @@ Task 정의와 완료 기준은 [Task.md](Task.md), 기획 기준은 [Proposal.m
 | ✅ 완료 | T0-2 | CLAUDE.md(절대 규칙, 명령어, 폴더 설명)와 docs/(기획서, TASKS.md) 작성 | 새 세션 점검: 절대 규칙 8개, Task 53개·라운드 4개·R1 20개, T4-1·T5-2 완료 기준, 명령어를 정확히 답함. 이후 사용자 요청으로 docs/Task.md·docs/CLAUDE.md를 원래 경로·원문으로 복원하고 루트 CLAUDE.md는 `@docs/CLAUDE.md`로 규칙을 불러옴 |
 | ✅ 완료 | T0-3 | Docker Compose로 로컬 PostgreSQL 구성, .env.example 작성 | `npm run db:up` 한 번으로 .env 생성 + DB healthy, `npm run db:check` → PostgreSQL 17.11 접속 성공. 127.0.0.1:54329만 공개, .env 권한 600·git 제외 확인, down/up 후 데이터 유지. 독립 검증 2건 통과. 이 PC에는 docker-compose v1만 있어 v2는 CI에서 처음 실행됨 |
 | 🔄 진행중 | T0-4 | CI 구성: lint, 타입 검사, 테스트, 비밀정보 스캔(gitleaks) | 워크플로(.github/workflows/ci.yml)와 gitleaks 설정 작성, actionlint·shellcheck 통과, 로컬 selftest 15개 통과(키가 든 커밋·나중에 지운 커밋 모두 실패, 이 저장소 이력은 통과). 남은 것: 저장소를 GitHub에 올린 뒤 PR에서 실제 실행 확인, 세 job을 필수 status check로 지정 |
-| 🔄 진행중 | T0-5 | 가짜 데이터 생성 스크립트(환자 500명, 예약 3개월분) | 생성기(scripts/fake-data/generate.ts) 작성됨, 검증 전. 남은 것: DB 적재 스크립트, 독립 검증 |
-| 🔄 진행중 | T1-1 | Prisma 스키마 (patient, consent, staff, appointment, visit_status_log, consultation, clinic_setting, audit_log) | 사용량 한도로 중단되어 다시 진행 |
-| 🔄 진행중 | T1-2 | 컬럼 암호화 모듈: 전화번호·생년월일 AES-256-GCM + 검색용 HMAC 해시 | 모듈과 단위 테스트 66개 통과(변조·다른 컬럼·다른 키 복호화 실패, 전체 번호·뒷 4자리 검색 시뮬레이션, 변형 10종 모두 테스트가 잡음). 남은 것: DB에 저장된 값이 평문이 아님과 DB 검색을 통합 테스트로 확인(T0-5 적재 단계). 알려진 한계: 암호문은 컬럼에만 묶이고 행(환자)에는 묶이지 않음 |
-| 🔄 진행중 | T1-4 | 시드 데이터: 역할별 테스트 계정, 병원 기본 설정 | T1-1 다음에 진행 |
+| ✅ 완료 | T0-5 | 가짜 데이터 생성 스크립트(환자 500명, 예약 3개월분) | `npm run fake:data`로 개발 DB에 환자 500명·예약 2,510건·상태 이력 5,295건 적재. 실행마다 새 seed(다른 이름·번호), 전화번호는 미배정 대역 010-0XXX-XXXX, 모든 환자에 가짜데이터 태그. 상태·노쇼 누적이 이력과 일치, 체어 중복 없음(통합 테스트). 참고: `npm run db:fresh`의 DB 초기화 단계는 Prisma가 AI 에이전트 실행을 막아 사용자가 직접 실행해야 함 |
+| ✅ 완료 | T1-1 | Prisma 스키마 (patient, consent, staff, appointment, visit_status_log, consultation, clinic_setting, audit_log) | 마이그레이션 20261111085933_init 개발 DB에 적용, 재실행 시 drift 없음. 통합 테스트 38개: 9개 테이블·컬럼이 기획서 6장과 일치, 주민번호·진료기록 컬럼 없음, 같은 체어·시간 중복 예약을 DB가 거부(동시 입력 포함). 기획서 외 추가: session(로그인), staff 로그인·잠금 컬럼, audit_log(10장), dentweb_chart_no(8장). 지각 여부는 저장하지 않음 |
+| ✅ 완료 | T1-2 | 컬럼 암호화 모듈: 전화번호·생년월일 AES-256-GCM + 검색용 HMAC 해시 | 단위 테스트 66개 + 통합 테스트(pii-storage): DB에서 phone_enc·birth_date_enc와 행 전체를 읽어 평문 숫자가 없음 확인, 전체 번호(여러 표기)·뒷 4자리로 검색 성공, 틀린 번호는 0건. 알려진 한계: 암호문은 컬럼에만 묶이고 행(환자)에는 묶이지 않음 → R3 전에 재검토 |
+| 🔄 진행중 | T1-4 | 시드 데이터: 역할별 테스트 계정, 병원 기본 설정 | `npm run db:seed` 후 계정 5개(4개 역할) 활성·잠금 없음, 저장된 해시가 SEED_STAFF_PASSWORD로 검증됨(통합 테스트). 남은 것: 로그인 화면(T2-1)에서 실제 로그인 확인 |
 | ⬜ 미완 | T2-1 | 로그인: 비밀번호 argon2 해시, 5회 실패 시 계정 잠금 | |
 | ⬜ 미완 | T2-4 | 역할 권한 검사 계층, 모든 API에 기본 거부 적용 | |
 | ⬜ 미완 | T3-1 | 고객 등록·수정 | |
