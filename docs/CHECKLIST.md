@@ -1,6 +1,6 @@
 # 개발 체크리스트
 
-Task 정의와 완료 기준은 [TASKS.md](TASKS.md), 기획 기준은 [Proposal.md](Proposal.md)를 따른다.
+Task 정의와 완료 기준은 [Task.md](Task.md), 기획 기준은 [Proposal.md](Proposal.md)를 따른다.
 
 **상태 표기**
 

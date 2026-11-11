@@ -4,7 +4,7 @@
 Next.js(화면 + API) + PostgreSQL + Prisma로 만든 단일 애플리케이션이다.
 
 - 기획서: [docs/Proposal.md](docs/Proposal.md)
-- Task 목록과 완료 기준: [docs/TASKS.md](docs/TASKS.md)
+- Task 목록과 완료 기준: [docs/Task.md](docs/Task.md)
 - 진행 현황: [docs/CHECKLIST.md](docs/CHECKLIST.md)
 - 작업 규칙(절대 규칙, 명령어, 폴더 구조): [CLAUDE.md](CLAUDE.md)
 
