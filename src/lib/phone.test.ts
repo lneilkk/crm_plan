@@ -27,6 +27,17 @@ describe("normalizePhone", () => {
     expect(normalizePhone("010-0000-12345678")).toBeNull(); // 너무 김
     expect(normalizePhone("전화없음")).toBeNull();
   });
+
+  it("숫자·구분 기호가 아닌 글자가 섞이면 null (지우고 남은 숫자로 다른 번호를 만들지 않는다)", () => {
+    expect(normalizePhone("010-0000-123４")).toBeNull(); // 전각 숫자
+    expect(normalizePhone("010-0000-1234 (집)")).toBeNull();
+    expect(normalizePhone("010-000O-1234")).toBeNull(); // 영문 O
+  });
+
+  it("010 번호는 11자리여야 한다", () => {
+    expect(normalizePhone("010-000-1234")).toBeNull();
+    expect(normalizePhone("(010) 0000-1234")).toBe("01000001234");
+  });
 });
 
 describe("phoneLast4 / isLast4Query", () => {

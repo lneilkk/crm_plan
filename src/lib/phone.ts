@@ -14,13 +14,18 @@ const NORMALIZED_PHONE_RE = /^0\d{8,10}$/;
  */
 export function normalizePhone(input: string): string | null {
   const trimmed = input.trim();
+  // 숫자와 흔한 구분 기호만 받는다. 다른 글자(전각 숫자 등)를 지우고 남은 숫자로 만들면 다른 사람 번호가 될 수 있다.
+  if (!/^\+?[0-9\s().-]+$/.test(trimmed)) return null;
   let digits = trimmed.replace(/\D/g, "");
   if (trimmed.startsWith("+82")) {
     // 국가번호 표기: "+82 10-…" 또는 "+82 010-…" 둘 다 받아 0으로 시작하게 맞춘다.
     digits = digits.slice(2);
     if (!digits.startsWith("0")) digits = `0${digits}`;
   }
-  return NORMALIZED_PHONE_RE.test(digits) ? digits : null;
+  if (!NORMALIZED_PHONE_RE.test(digits)) return null;
+  // 010 휴대폰은 항상 11자리다. 한 자리 빠진 010 번호를 다른 번호로 받아들이지 않는다.
+  if (digits.startsWith("010") && digits.length !== 11) return null;
+  return digits;
 }
 
 /** 정규화된 번호의 뒷 4자리 */
