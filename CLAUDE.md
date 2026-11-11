@@ -36,6 +36,11 @@
 | `npm run typecheck` | 라우트 타입 생성 후 TypeScript 검사 |
 | `npm test` | 단위 테스트 (Vitest) |
 | `npm run check` | lint + typecheck + 단위 테스트를 한 번에 |
+| `npm run db:up` | 로컬 PostgreSQL 띄우기 (Docker Compose, 127.0.0.1:54329). `.env`가 없으면 만들고 준비될 때까지 기다림 |
+| `npm run db:down` | 로컬 DB 컨테이너 내리기. 데이터(`.data/postgres`)는 남음 |
+| `npm run db:check` | `.env`의 `DATABASE_URL`로 접속해 서버 버전 출력 (성공 0, 실패 1) |
+| `npm run db:psql` | DB 컨테이너 안에서 psql 열기. 인자는 `--` 뒤에 붙임 (예: `npm run db:psql -- -c "select 1"`) |
+| `npm run setup:env` | `.env.example`로 `.env` 생성(비밀값 무작위, 권한 600). 이미 있으면 바꾸지 않고 빠진 변수 이름만 알려 줌 |
 
 ## 폴더 구조
 

@@ -53,3 +53,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Claude Code 작업 공간(worktree)
+/.claude/worktrees/

@@ -9,6 +9,11 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "setup:env": "node scripts/dev/setup-env.mjs",
+    "db:up": "node scripts/dev/db-up.mjs",
+    "db:down": "node scripts/dev/db-down.mjs",
+    "db:check": "node scripts/dev/db-check.mjs",
+    "db:psql": "node scripts/dev/db-psql.mjs",
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
