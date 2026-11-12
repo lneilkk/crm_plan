@@ -46,6 +46,8 @@ next-env.d.ts
 # 로컬 데이터·임시 파일·자동 생성물
 /.data/
 /.tmp/
+# 클라우드 접근 키 등 이 PC에만 두는 비밀값 (절대 규칙 2)
+/.secrets/
 /.cache/
 /src/generated/
 

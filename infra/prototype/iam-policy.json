@@ -1,0 +1,82 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Ec2SeoulOnly",
+      "Effect": "Allow",
+      "Action": "ec2:*",
+      "Resource": "*",
+      "Condition": { "StringEquals": { "aws:RequestedRegion": "ap-northeast-2" } }
+    },
+    {
+      "Sid": "SsmRunCommandsAndAmiLookup",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation",
+        "ssm:ListCommands",
+        "ssm:ListCommandInvocations",
+        "ssm:CancelCommand",
+        "ssm:DescribeInstanceInformation",
+        "ssm:StartSession",
+        "ssm:TerminateSession",
+        "ssm:ResumeSession",
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
+      "Resource": "*",
+      "Condition": { "StringEquals": { "aws:RequestedRegion": "ap-northeast-2" } }
+    },
+    {
+      "Sid": "Route53Records",
+      "Effect": "Allow",
+      "Action": [
+        "route53:ListHostedZones",
+        "route53:ListHostedZonesByName",
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets",
+        "route53:ChangeResourceRecordSets",
+        "route53:GetChange"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "InstanceRoleOnlyCrmProto",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:GetRole",
+        "iam:TagRole",
+        "iam:PutRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:DeleteRole",
+        "iam:CreateInstanceProfile",
+        "iam:GetInstanceProfile",
+        "iam:AddRoleToInstanceProfile",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:DeleteInstanceProfile",
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::*:role/crm-proto-*",
+        "arn:aws:iam::*:instance-profile/crm-proto-*"
+      ]
+    },
+    {
+      "Sid": "AttachOnlySsmCorePolicy",
+      "Effect": "Allow",
+      "Action": ["iam:AttachRolePolicy", "iam:DetachRolePolicy"],
+      "Resource": "arn:aws:iam::*:role/crm-proto-*",
+      "Condition": {
+        "ArnEquals": { "iam:PolicyARN": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" }
+      }
+    },
+    {
+      "Sid": "WhoAmIAndBudget",
+      "Effect": "Allow",
+      "Action": ["sts:GetCallerIdentity", "ce:GetCostAndUsage"],
+      "Resource": "*"
+    }
+  ]
+}

@@ -4,6 +4,7 @@
 
 # 비밀값·로컬 데이터·임시 파일
 .env*
+.secrets
 .data
 .tmp
 .cache
@@ -33,6 +34,7 @@ blob-report
 **/*.test.tsx
 
 # 이미지에 필요 없는 문서·배포 파일
+infra
 docs
 *.md
 Dockerfile

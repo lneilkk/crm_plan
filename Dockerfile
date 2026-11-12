@@ -53,6 +53,9 @@ COPY prisma ./prisma
 COPY tsconfig.json ./
 COPY src/lib ./src/lib
 COPY src/server ./src/server
+# 프로토타입 서버용 가짜 데이터 생성(FAKE_DATA_ALLOWED=true일 때만 동작)과 운영자용 잠금 해제 스크립트
+COPY scripts/fake-data ./scripts/fake-data
+COPY scripts/ops ./scripts/ops
 RUN npx prisma generate
 USER node
 CMD ["prisma", "migrate", "deploy"]
