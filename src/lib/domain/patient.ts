@@ -18,8 +18,8 @@ export const VISIT_TYPES = ["NEW", "RETURNING"] as const;
 export type VisitType = (typeof VISIT_TYPES)[number];
 
 export const VISIT_TYPE_LABEL: Record<VisitType, string> = {
-  NEW: "신규",
-  RETURNING: "재진",
+  NEW: "신환",
+  RETURNING: "구환",
 };
 
 /** 유입경로 — 고객이 병원을 알게 된 경로 (기획서 4-4: 전화·홈페이지·플랫폼 앱·소개) */

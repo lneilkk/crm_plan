@@ -1,9 +1,9 @@
 import "server-only";
 
-import { ARRIVED_STATUSES } from "@/lib/domain/appointment";
 import { maskName } from "@/lib/masking";
 import { type DateKey, kstDayRange } from "@/lib/time/kst";
 import { getClinicSettings } from "@/server/appointments/settings";
+import { newPatientJudge } from "@/server/patients/first-arrival";
 import { db } from "@/server/db";
 import { type BoardSource, buildBoard } from "./rows";
 
@@ -32,22 +32,10 @@ export async function getBoard(date: DateKey, now: Date) {
     },
   });
 
-  // 신규 배지: 등록 구분이 신규이고 이 예약보다 앞서 내원한 예약이 없을 때
-  const newPatientIds = [
-    ...new Set(appointments.filter((a) => a.patient.visitType === "NEW").map((a) => a.patientId)),
-  ];
-  const firstArrivals =
-    newPatientIds.length === 0
-      ? []
-      : await db.appointment.groupBy({
-          by: ["patientId"],
-          where: { patientId: { in: newPatientIds }, status: { in: [...ARRIVED_STATUSES] } },
-          _min: { startAt: true },
-        });
-  const firstArrivalOf = new Map(firstArrivals.map((row) => [row.patientId, row._min.startAt]));
+  // 신환 배지 (F-4): 신환으로 등록했고 이 예약보다 앞서 내원한 예약이 없을 때
+  const isNew = await newPatientJudge(appointments.map((a) => ({ id: a.patientId, visitType: a.patient.visitType })));
 
   const sources: BoardSource[] = appointments.map((a) => {
-    const firstArrival = firstArrivalOf.get(a.patientId) ?? null;
     return {
       id: a.id,
       patientId: a.patientId,
@@ -62,7 +50,7 @@ export async function getBoard(date: DateKey, now: Date) {
       doctorName: a.doctor?.name ?? null,
       counselorName: a.counselor?.name ?? null,
       referralSource: a.patient.referralSource,
-      isNew: a.patient.visitType === "NEW" && (firstArrival === null || firstArrival >= a.startAt),
+      isNew: isNew({ id: a.patientId, visitType: a.patient.visitType }, a.startAt),
     };
   });
 

@@ -341,7 +341,7 @@ function BoardTable({
       <table className="w-full border-collapse text-left text-base">
         <thead className="bg-slate-50 text-sm text-slate-600">
           <tr>
-            {["시간", "고객명", "신규/재진", "예약 항목", "담당자", "유입경로", "상태"].map((label) => (
+            {["시간", "고객명", "신환/구환", "예약 항목", "담당자", "유입경로", "상태"].map((label) => (
               <th key={label} scope="col" className="px-3 py-2 font-semibold whitespace-nowrap">
                 {label}
               </th>
@@ -421,7 +421,7 @@ function BoardTableRow({
       <td className="px-3 py-3 text-xl font-bold tabular-nums">{row.time}</td>
       <td className="px-3 py-3 text-lg font-semibold">{row.nameMasked}</td>
       <td className="px-3 py-3">
-        {row.isNew ? <Badge tone="warning">신규</Badge> : <Badge tone="neutral">재진</Badge>}
+        {row.isNew ? <Badge tone="warning">신환</Badge> : <Badge tone="neutral">구환</Badge>}
       </td>
       <td className="px-3 py-3">{row.treatmentItem}</td>
       <td className="px-3 py-3">{staff}</td>

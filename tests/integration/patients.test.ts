@@ -392,6 +392,7 @@ describe("T3-2 고객 검색", () => {
       tags: [],
       dentwebChartNo: "F100001",
       noShowCount: 0,
+      isNewPatient: true,
     });
     for (const secret of ["가상홍길", "가상김철", "0123-4567", "0987-4567", "01001234567", "01009874567", "1980-07-07", "phoneEnc", "v1."]) {
       expect(res.text).not.toContain(secret);

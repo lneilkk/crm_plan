@@ -80,7 +80,7 @@ export function WeekView({
                         </span>
                         {item.isNewPatient && (
                           <Badge tone="warning" className="px-1 py-0 text-xs">
-                            신규
+                            신환
                           </Badge>
                         )}
                       </span>

@@ -1,14 +1,16 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
-import type { AppointmentStatus } from "@/lib/domain/appointment";
+import { ARRIVED_STATUSES, type AppointmentStatus } from "@/lib/domain/appointment";
 import type { Gender, ReferralSource, VisitType } from "@/lib/domain/patient";
 import { maskName } from "@/lib/masking";
+import { isSamePersonName } from "@/lib/patients/new-patient";
 import { formatPhone, maskPhone, normalizePhone } from "@/lib/phone";
 import { type DateKey, kstDayRange } from "@/lib/time/kst";
 import { ApiError } from "@/server/api/errors";
 import { hashPhone, hashPhoneLast4, openBirthDate, openPhone, phoneSearchHash, sealBirthDate, sealPhone } from "@/server/crypto/pii";
 import { db, type DbClient } from "@/server/db";
+import { newPatientJudge } from "./first-arrival";
 import type { CreatePatientInput, UpdatePatientInput } from "./schema";
 
 /**
@@ -34,6 +36,8 @@ export type PatientListItem = {
   tags: string[];
   dentwebChartNo: string | null;
   noShowCount: number;
+  /** 지금 기준 신환인지 (F-4: 신환으로 등록했고 내원한 적이 없음) */
+  isNewPatient: boolean;
 };
 
 /** 차트번호처럼 보이는 검색어: 영문·숫자·하이픈만, 숫자를 하나 이상 포함 (예: F000123, 12345) */
@@ -67,7 +71,7 @@ function birthYearOf(birthDateEnc: string | null): number | null {
   return birthDateEnc ? Number(openBirthDate(birthDateEnc).slice(0, 4)) : null;
 }
 
-function toListItem(row: ListRow): PatientListItem {
+function toListItem(row: ListRow, isNewPatient: boolean): PatientListItem {
   return {
     id: row.id,
     nameMasked: maskName(row.name),
@@ -79,6 +83,7 @@ function toListItem(row: ListRow): PatientListItem {
     tags: row.tags,
     dentwebChartNo: row.dentwebChartNo,
     noShowCount: row.noShowCount,
+    isNewPatient,
   };
 }
 
@@ -95,6 +100,8 @@ export type SearchOptions = {
    * kind=phoneLast4와 함께일 때만 쓴다(API에서는 schema가 강제한다).
    */
   appointmentDate?: DateKey;
+  /** 신환만 (F-4): 신환으로 등록했고 내원한 적이 없는 고객 */
+  newOnly?: boolean;
 };
 
 /**
@@ -122,6 +129,9 @@ export async function searchPatients(
   } else if (kind === "name") {
     where = { name: { contains: q, mode: "insensitive" } };
   }
+  if (options.newOnly) {
+    where = { AND: [where, { visitType: "NEW", appointments: { none: { status: { in: [...ARRIVED_STATUSES] } } } }] };
+  }
   if (options.appointmentDate) {
     const { start, end } = kstDayRange(options.appointmentDate);
     where = { AND: [where, { appointments: { some: { startAt: { gte: start, lt: end } } } }] };
@@ -133,7 +143,8 @@ export async function searchPatients(
     // 날짜로 좁히면 결과는 그날 예약한 고객 중 뒷 4자리가 같은 고객뿐이다 — 상한을 두면 그날 고객이 빠질 수 있어 두지 않는다.
     ...(options.appointmentDate ? {} : { take: options.limit }),
   });
-  return { kind, items: rows.map(toListItem) };
+  const isNew = await newPatientJudge(rows);
+  return { kind, items: rows.map((row) => toListItem(row, isNew(row))) };
 }
 
 // ── 상세 ────────────────────────────────────────────────────────────
@@ -154,6 +165,8 @@ export type PatientDetail = {
   dentwebChartNo: string | null;
   memo: string | null;
   noShowCount: number;
+  /** 지금 기준 신환인지 (F-4) */
+  isNewPatient: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -181,6 +194,7 @@ export async function getPatientDetail(
     },
   });
   if (!row) return null;
+  const isNew = await newPatientJudge([row]);
   return {
     patient: {
       id: row.id,
@@ -194,6 +208,7 @@ export async function getPatientDetail(
       dentwebChartNo: row.dentwebChartNo,
       memo: row.memo,
       noShowCount: row.noShowCount,
+      isNewPatient: isNew(row),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     },
@@ -210,8 +225,14 @@ export const NOT_FOUND_MESSAGE = "고객을 찾을 수 없습니다.";
 /** 같은 번호 경고에 보여 줄 고객 — 마스킹한 이름과 출생 연도만 */
 export type DuplicatePatient = { id: string; nameMasked: string; birthYear: number | null };
 
-/** 결과: 저장했거나, 같은 번호의 다른 고객이 있어 저장하지 않았다(경고). */
-export type SaveResult = { kind: "saved"; id: string } | { kind: "duplicatePhone"; duplicates: DuplicatePatient[] };
+/**
+ * 결과: 저장했거나, 같은 번호의 다른 고객이 있어 저장하지 않았거나(경고),
+ * 이름과 번호가 모두 같은 고객이 이미 있어 저장하지 않았다(F-4: 같은 사람 → 기존 고객 = 구환).
+ */
+export type SaveResult =
+  | { kind: "saved"; id: string }
+  | { kind: "duplicatePhone"; duplicates: DuplicatePatient[] }
+  | { kind: "existingPatient"; existing: { id: string; nameMasked: string } };
 
 const DUPLICATES_SHOWN = 10;
 
@@ -255,6 +276,14 @@ async function withChartNoConflict<T>(work: Promise<T>): Promise<T> {
 
 export async function createPatient(input: CreatePatientInput, staffId: string, client: DbClient = db): Promise<SaveResult> {
   const sealed = sealPhone(input.phone);
+  // 이름과 번호가 모두 같으면 같은 사람이다. "그래도 등록"이어도 새로 만들지 않고 기존 고객을 알려 준다.
+  const samePhone = await client.patient.findMany({
+    where: { phoneHash: sealed.phoneHash },
+    select: { id: true, name: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const same = samePhone.find((row) => isSamePersonName(row.name, input.name));
+  if (same) return { kind: "existingPatient", existing: { id: same.id, nameMasked: maskName(same.name) } };
   if (!input.confirmDuplicate) {
     const duplicates = await findPhoneDuplicates(client, sealed.phoneHash);
     if (duplicates.length > 0) return { kind: "duplicatePhone", duplicates };
@@ -280,7 +309,11 @@ export async function createPatient(input: CreatePatientInput, staffId: string, 
   return { kind: "saved", id: created.id };
 }
 
-export async function updatePatient(id: string, input: UpdatePatientInput, client: DbClient = db): Promise<SaveResult> {
+export async function updatePatient(
+  id: string,
+  input: UpdatePatientInput,
+  client: DbClient = db,
+): Promise<Exclude<SaveResult, { kind: "existingPatient" }>> {
   const current = await client.patient.findUnique({ where: { id }, select: { id: true, phoneHash: true } });
   if (!current) throw new ApiError(404, "NOT_FOUND", NOT_FOUND_MESSAGE);
 

@@ -93,6 +93,8 @@ export const searchPatientsQuery = z
     limit: z.coerce.number().int().min(1).max(SEARCH_LIMIT_MAX).default(SEARCH_LIMIT_DEFAULT),
     kind: z.enum(PATIENT_SEARCH_KINDS).optional(),
     appointmentDate: z.string().refine(isValidDateKey, { message: "날짜 형식" }).optional(),
+    /** "1"이면 신환만 (F-4) */
+    newOnly: z.literal("1").optional(),
   })
   .refine((query) => query.kind !== "phoneLast4" || isLast4Query(query.q), {
     message: "뒷 4자리 형식",

@@ -127,7 +127,7 @@ function DetailBody({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xl font-bold">{data.patientNameMasked}</span>
-        {data.isNewPatient && <Badge tone="warning">신규</Badge>}
+        {data.isNewPatient ? <Badge tone="warning">신환</Badge> : <Badge tone="neutral">구환</Badge>}
         <Badge tone={STATUS_TONE[data.status]}>{APPOINTMENT_STATUS_LABEL[data.status]}</Badge>
         <Link href={`/patients/${data.patientId}`} className="ml-auto text-base font-semibold text-blue-700 underline">
           고객 상세 보기

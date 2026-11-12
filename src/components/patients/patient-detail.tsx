@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { apiFetch } from "@/lib/auth/api-client";
 import { APPOINTMENT_STATUS_LABEL } from "@/lib/domain/appointment";
-import { GENDER_LABEL, REFERRAL_SOURCE_LABEL, VISIT_TYPE_LABEL } from "@/lib/domain/patient";
+import { GENDER_LABEL, REFERRAL_SOURCE_LABEL } from "@/lib/domain/patient";
 import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import type { PatientAppointmentItem, PatientDetail as Detail } from "@/server/patients/service";
 import { Badge, Button, Card, CardTitle, EmptyState, Spinner, Table, TBody, Td, Th, THead, Tr } from "@/components/ui";
@@ -47,7 +47,7 @@ export function PatientDetail({ id }: { id: string }) {
             고객 목록
           </Link>
           <h1 className="text-2xl font-bold text-slate-900">{patient.name}</h1>
-          <Badge tone={patient.visitType === "NEW" ? "info" : "neutral"}>{VISIT_TYPE_LABEL[patient.visitType]}</Badge>
+          <Badge tone={patient.isNewPatient ? "info" : "neutral"}>{patient.isNewPatient ? "신환" : "구환"}</Badge>
           {patient.noShowCount > 0 && <Badge tone="danger">노쇼 {patient.noShowCount}회</Badge>}
         </div>
         {!editing && (

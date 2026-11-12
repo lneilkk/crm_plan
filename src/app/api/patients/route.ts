@@ -1,7 +1,7 @@
 import { defineRoute } from "@/server/api/define-route";
 import { createPatientBody, searchPatientsQuery } from "@/server/patients/schema";
 import { createPatient, searchPatients } from "@/server/patients/service";
-import { duplicatePhoneResponse } from "@/server/patients/responses";
+import { duplicatePhoneResponse, existingPatientResponse } from "@/server/patients/responses";
 
 /**
  * 고객 검색 — T3-2. 전화번호 뒷 4자리·전체 번호·차트번호·이름. 목록은 이름·번호를 마스킹한다.
@@ -17,6 +17,7 @@ export const GET = defineRoute({
       limit: ctx.query.limit,
       kind: ctx.query.kind,
       appointmentDate: ctx.query.appointmentDate,
+      newOnly: ctx.query.newOnly === "1",
     });
     ctx.touchPatients(items.map((item) => item.id));
     ctx.audit({ searchKind: kind });
@@ -35,6 +36,7 @@ export const POST = defineRoute({
   handler: async (ctx) => {
     const result = await createPatient(ctx.body, ctx.staff.id, ctx.db);
     if (result.kind === "duplicatePhone") return duplicatePhoneResponse(ctx, result.duplicates);
+    if (result.kind === "existingPatient") return existingPatientResponse(ctx, result.existing);
     ctx.touchPatients([result.id]);
     ctx.audit({ confirmedDuplicate: ctx.body.confirmDuplicate === true });
     return Response.json({ id: result.id }, { status: 201 });

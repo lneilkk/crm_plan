@@ -19,3 +19,25 @@ export function duplicatePhoneResponse(
     { status: 409, headers: { "Cache-Control": "no-store" } },
   );
 }
+
+/**
+ * 이름·번호가 모두 같은 고객이 이미 있음 (409 EXISTING_PATIENT, F-4). 새로 만들지 않는다.
+ * 화면은 이 고객(구환)을 고르거나 고객 상세로 간다. 마스킹한 이름만 담고, 알려 준 고객을 감사 행에 남긴다.
+ */
+export function existingPatientResponse(
+  ctx: { touchPatients(ids: readonly string[]): void; audit(extra: AuditDetail): void },
+  existing: { id: string; nameMasked: string },
+): Response {
+  ctx.touchPatients([existing.id]);
+  ctx.audit({ errorCode: "EXISTING_PATIENT" });
+  return Response.json(
+    {
+      error: {
+        code: "EXISTING_PATIENT",
+        message: "이름과 번호가 같은 고객이 이미 있습니다(구환). 새로 등록하지 않고 기존 고객을 씁니다.",
+        existing,
+      },
+    },
+    { status: 409, headers: { "Cache-Control": "no-store" } },
+  );
+}

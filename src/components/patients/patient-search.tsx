@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/auth/api-client";
-import { GENDER_LABEL, REFERRAL_SOURCE_LABEL, VISIT_TYPE_LABEL } from "@/lib/domain/patient";
+import { GENDER_LABEL, REFERRAL_SOURCE_LABEL } from "@/lib/domain/patient";
 import type { PatientListItem } from "@/server/patients/service";
 import { Badge, Button, EmptyState, Input, Spinner, Table, TBody, Td, Th, THead, Tr } from "@/components/ui";
 
@@ -18,6 +18,8 @@ export function PatientSearch() {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  /** 신환만 보기 (F-4): 내원한 적이 있거나 구환으로 등록한 고객은 빠진다 */
+  const [newOnly, setNewOnly] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(input.trim()), DEBOUNCE_MS);
@@ -25,8 +27,9 @@ export function PatientSearch() {
   }, [input]);
 
   const result = useQuery({
-    queryKey: ["patients", "search", query],
-    queryFn: () => apiFetch<{ items: PatientListItem[] }>(`/api/patients?q=${encodeURIComponent(query)}`),
+    queryKey: ["patients", "search", query, newOnly],
+    queryFn: () =>
+      apiFetch<{ items: PatientListItem[] }>(`/api/patients?q=${encodeURIComponent(query)}${newOnly ? "&newOnly=1" : ""}`),
     placeholderData: keepPreviousData,
     staleTime: 0,
     gcTime: 60_000,
@@ -52,6 +55,10 @@ export function PatientSearch() {
           value={input}
           onChange={(event) => setInput(event.target.value)}
         />
+        <label className="flex min-h-11 shrink-0 items-center gap-2 text-base font-semibold">
+          <input type="checkbox" className="size-5" checked={newOnly} onChange={(event) => setNewOnly(event.target.checked)} />
+          신환만
+        </label>
         {result.isFetching && <Spinner label="검색 중" />}
       </div>
 
@@ -102,7 +109,7 @@ export function PatientSearch() {
                   <Td className="tabular-nums">{item.birthYear ?? "-"}</Td>
                   <Td className="tabular-nums">{item.dentwebChartNo ?? "-"}</Td>
                   <Td>
-                    <Badge tone={item.visitType === "NEW" ? "info" : "neutral"}>{VISIT_TYPE_LABEL[item.visitType]}</Badge>
+                    <Badge tone={item.isNewPatient ? "info" : "neutral"}>{item.isNewPatient ? "신환" : "구환"}</Badge>
                     {item.noShowCount > 0 && (
                       <Badge tone="danger" className="ml-1">
                         노쇼 {item.noShowCount}

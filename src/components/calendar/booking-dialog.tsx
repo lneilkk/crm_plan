@@ -331,7 +331,7 @@ function PatientSearchBox({ onSelect }: { onSelect: (p: SelectedPatient) => void
                   <span className="tabular-nums text-slate-700">{item.phoneMasked}</span>
                   {item.birthYear && <span className="text-sm text-slate-500">{item.birthYear}년생</span>}
                   {item.dentwebChartNo && <span className="text-sm text-slate-500">차트 {item.dentwebChartNo}</span>}
-                  {item.visitType === "NEW" && <Badge tone="warning">신규</Badge>}
+                  {item.isNewPatient ? <Badge tone="warning">신환</Badge> : <Badge tone="neutral">구환</Badge>}
                 </button>
               </li>
             ))}
@@ -355,10 +355,15 @@ function QuickPatientForm({ onSelect }: { onSelect: (p: SelectedPatient) => void
         method: "POST",
         body: { name: name.trim(), phone: phone.trim(), ...(confirmDuplicate ? { confirmDuplicate: true } : {}) },
       }),
-    onSuccess: (data) => onSelect({ id: data.id, label: `${maskName(name)} (신규 등록)` }),
+    onSuccess: (data) => onSelect({ id: data.id, label: `${maskName(name)} (신환 등록)` }),
     onError: (error) => {
       if (error instanceof ApiRequestError && error.code === "DUPLICATE_PHONE") {
         setDuplicates((error.details?.duplicates as DuplicatePatient[] | undefined) ?? []);
+      }
+      // 이름·번호가 같은 고객이 이미 있으면(구환) 새로 만들지 않고 그 고객을 고른다 (F-4)
+      if (error instanceof ApiRequestError && error.code === "EXISTING_PATIENT") {
+        const existing = error.details?.existing as { id: string; nameMasked: string } | undefined;
+        if (existing) onSelect({ id: existing.id, label: `${existing.nameMasked} (구환 — 이미 등록된 고객)` });
       }
     },
   });
@@ -371,7 +376,8 @@ function QuickPatientForm({ onSelect }: { onSelect: (p: SelectedPatient) => void
   }
 
   const serverError =
-    register.error && !(register.error instanceof ApiRequestError && register.error.code === "DUPLICATE_PHONE")
+    register.error &&
+    !(register.error instanceof ApiRequestError && ["DUPLICATE_PHONE", "EXISTING_PATIENT"].includes(register.error.code))
       ? register.error instanceof ApiRequestError && register.error.code === "VALIDATION_FAILED"
         ? "이름과 휴대폰 번호를 확인하세요."
         : register.error.message

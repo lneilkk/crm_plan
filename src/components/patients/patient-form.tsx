@@ -96,6 +96,8 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
   const [values, setValues] = useState<FormValues>(() => initialValues(patient));
   const [fieldErrors, setFieldErrors] = useState<FieldName[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicatePatient[] | null>(null);
+  /** 이름·번호가 같은 고객이 이미 있음 (F-4: 구환) */
+  const [existing, setExisting] = useState<{ id: string; nameMasked: string } | null>(null);
 
   const save = useMutation({
     mutationFn: (confirmDuplicate: boolean) =>
@@ -112,6 +114,8 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
       if (!(error instanceof ApiRequestError)) return;
       if (error.code === "DUPLICATE_PHONE") {
         setDuplicates((error.details?.duplicates as DuplicatePatient[] | undefined) ?? []);
+      } else if (error.code === "EXISTING_PATIENT") {
+        setExisting((error.details?.existing as { id: string; nameMasked: string } | undefined) ?? null);
       } else if (error.code === "VALIDATION_FAILED") {
         const fields = (error.details?.fields as { path: string }[] | undefined) ?? [];
         setFieldErrors(
@@ -124,6 +128,7 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
     if (key === "phone") setDuplicates(null);
+    if (key === "phone" || key === "name") setExisting(null);
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -139,7 +144,7 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
   const error = (field: FieldName) =>
     hasError(field) && <FieldError id={`${field}-error`}>{FIELD_MESSAGE[field]}</FieldError>;
   const otherError =
-    save.isError && !(save.error instanceof ApiRequestError && ["DUPLICATE_PHONE", "VALIDATION_FAILED"].includes(save.error.code));
+    save.isError && !(save.error instanceof ApiRequestError && ["DUPLICATE_PHONE", "EXISTING_PATIENT", "VALIDATION_FAILED"].includes(save.error.code));
 
   return (
     <Card className="p-6">
@@ -212,7 +217,7 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
           </Select>
         </div>
         <div>
-          <Label htmlFor="visitType">신규/재진</Label>
+          <Label htmlFor="visitType">신환/구환</Label>
           <Select id="visitType" value={values.visitType} onChange={(e) => set("visitType", e.target.value as VisitType)}>
             {VISIT_TYPES.map((v) => (
               <option key={v} value={v}>
@@ -252,6 +257,16 @@ export function PatientForm({ patient, onDone }: { patient?: PatientDetail; onDo
             {MEMO_GUIDE}
           </p>
         </div>
+
+        {existing && (
+          <div role="alert" className="rounded-xl border border-blue-300 bg-blue-50 p-4 sm:col-span-2">
+            <p className="text-lg font-bold text-blue-900">이미 등록된 고객입니다 (구환)</p>
+            <p className="mt-1 text-blue-900">이름과 번호가 같은 고객이 있어 새로 등록하지 않았습니다. 기존 고객 정보를 쓰세요.</p>
+            <Link href={`/patients/${existing.id}`} className="mt-3 inline-block text-lg font-semibold text-blue-800 underline">
+              {existing.nameMasked} — 고객 상세 보기
+            </Link>
+          </div>
+        )}
 
         {duplicates && (
           <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 sm:col-span-2">

@@ -7,6 +7,7 @@ import { ApiError } from "@/server/api/errors";
 import { openPhone, PiiDecryptError } from "@/server/crypto/pii";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
+import { newPatientJudge } from "@/server/patients/first-arrival";
 
 /**
  * 예약 조회 — T4-1. 캘린더 목록(기간)과 예약 한 건 상세.
@@ -46,6 +47,7 @@ export async function listAppointments(filter: AppointmentFilter) {
     },
     orderBy: [{ startAt: "asc" }, { chair: "asc" }, { id: "asc" }],
   });
+  const isNew = await newPatientJudge(rows.map((row) => ({ id: row.patientId, visitType: row.patient.visitType })));
   return rows.map((row) => ({
     id: row.id,
     patientId: row.patientId,
@@ -63,7 +65,7 @@ export async function listAppointments(filter: AppointmentFilter) {
     status: row.status,
     arrivedAt: row.arrivedAt,
     originalAppointmentId: row.originalAppointmentId,
-    isNewPatient: row.patient.visitType === "NEW",
+    isNewPatient: isNew({ id: row.patientId, visitType: row.patient.visitType }, row.startAt),
     referralSource: row.patient.referralSource,
     labelIds: row.labels.map((link) => link.labelId),
   }));
@@ -85,11 +87,12 @@ export async function getAppointmentDetail(id: string) {
     },
   });
   if (!row) throw new ApiError(404, "NOT_FOUND", "예약을 찾을 수 없습니다.");
+  const isNew = await newPatientJudge([{ id: row.patientId, visitType: row.patient.visitType }]);
   return {
     id: row.id,
     patientId: row.patientId,
     patientNameMasked: maskName(row.patient.name),
-    isNewPatient: row.patient.visitType === "NEW",
+    isNewPatient: isNew({ id: row.patientId, visitType: row.patient.visitType }, row.startAt),
     startAt: row.startAt,
     endAt: row.endAt,
     durationMin: row.durationMin,
