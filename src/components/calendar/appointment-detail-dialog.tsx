@@ -21,7 +21,9 @@ import {
   kstDateTime,
   kstMinutesOfDay,
 } from "@/lib/time/kst";
-import { amountAfterDiscount } from "@/lib/domain/treatment";
+import { amountAfterDiscount, isPremiumItem } from "@/lib/domain/treatment";
+import type { StaffRole } from "@/lib/domain/staff";
+import { SurgerySection } from "./surgery-section";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
 import { AppointmentEditSection } from "./appointment-edit-section";
 import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
@@ -43,6 +45,7 @@ export function AppointmentDetailDialog({
   settings,
   doctors,
   canWrite,
+  role,
   style,
   today,
   onClose,
@@ -55,6 +58,8 @@ export function AppointmentDetailDialog({
   settings: ClinicSettings;
   doctors: DoctorOption[];
   canWrite: boolean;
+  /** 보는 직원의 역할 — 수술 기록 권한(F-11) */
+  role: StaffRole;
   /** 색 라벨 (F-2) */
   style: CalendarStyle;
   /** 오늘(한국 시간) */
@@ -96,6 +101,7 @@ export function AppointmentDetailDialog({
           chairName={chairName}
           chairs={chairs}
           canWrite={canWrite}
+          role={role}
           style={style}
           settings={settings}
           doctors={doctors}
@@ -107,8 +113,8 @@ export function AppointmentDetailDialog({
           onMoved={async () => {
             await Promise.all([onMoved(), detail.refetch()]);
           }}
-          onLabelsSaved={() => {
-            onLabelsSaved("라벨을 저장했습니다.");
+          onLabelsSaved={(message?: string) => {
+            onLabelsSaved(message ?? "라벨을 저장했습니다.");
             void detail.refetch();
           }}
         />
@@ -122,6 +128,7 @@ function DetailBody({
   chairName,
   chairs,
   canWrite,
+  role,
   style,
   settings,
   doctors,
@@ -134,13 +141,14 @@ function DetailBody({
   chairName: (code: string) => string;
   chairs: Chair[];
   canWrite: boolean;
+  role: StaffRole;
   style: CalendarStyle;
   settings: ClinicSettings;
   doctors: DoctorOption[];
   today: string;
   onEdited: () => void;
   onMoved: () => Promise<void>;
-  onLabelsSaved: () => void;
+  onLabelsSaved: (message?: string) => void;
 }) {
   const start = new Date(data.startAt);
   // 보기가 기본이고, [고치기]를 눌렀을 때만 수정 양식·라벨 고르기가 보인다 (F-12)
@@ -220,6 +228,10 @@ function DetailBody({
             </Button>
           </div>
         </div>
+      )}
+
+      {(isPremiumItem(settings.treatmentItemMeta, data.treatmentItem) || data.participants.length > 0) && (
+        <SurgerySection key={data.participants.map((p) => p.staffId).join(",")} data={data} role={role} onSaved={(message) => onLabelsSaved(message)} />
       )}
 
       {canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (
@@ -375,7 +387,8 @@ function LabelSection({
   const changed = value.length !== saved.length || value.some((id) => !saved.includes(id));
   const save = useMutation({
     mutationFn: () => apiFetch(`/api/appointments/${appointmentId}/labels`, { method: "PUT", body: { labelIds: value } }),
-    onSuccess: onSaved,
+    // 응답(labelIds)을 넘기지 않는다 — onSaved의 인자는 알림 문구다
+    onSuccess: () => onSaved(),
   });
 
   if (!canWrite) {

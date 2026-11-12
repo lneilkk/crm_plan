@@ -25,6 +25,10 @@ export const PERMISSIONS = {
   "consult.read": ["COUNSELOR", "DOCTOR", "ADMIN"],
   /** 상담 등록·수정·수술예약 전환 (F-10) */
   "consult.write": ["COUNSELOR", "ADMIN"],
+  /** 수술 참여 직원 기록 (F-11) */
+  "surgery.record": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
+  /** 수술 메모(실수 등 직원 관련) 보기·쓰기 — 원장·관리자만 (F-11) */
+  "surgery.note": ["DOCTOR", "ADMIN"],
   /** 기존 CRM 데이터 가져오기 (F-7) — 관리자만 */
   "data.import": ["ADMIN"],
 } as const satisfies Record<string, readonly StaffRole[]>;

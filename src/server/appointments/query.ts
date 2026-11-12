@@ -82,6 +82,7 @@ export async function getAppointmentDetail(id: string) {
       doctor: { select: { name: true } },
       counselor: { select: { name: true } },
       labels: { select: { labelId: true } },
+      participants: { select: { staffId: true, staff: { select: { name: true, role: true } } }, orderBy: { createdAt: "asc" } },
       statusLogs: {
         include: { staff: { select: { name: true } } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -109,6 +110,8 @@ export async function getAppointmentDetail(id: string) {
     arrivedAt: row.arrivedAt,
     originalAppointmentId: row.originalAppointmentId,
     memo: row.memo,
+    /** 수술 참여 직원 (F-11) */
+    participants: row.participants.map((p) => ({ staffId: p.staffId, name: p.staff.name, role: p.staff.role })),
     listPrice: row.listPrice,
     discountRate: row.discountRate,
     labelIds: row.labels.map((link) => link.labelId),

@@ -49,6 +49,8 @@ export type AppointmentDetail = {
   originalAppointmentId: string | null;
   memo: string | null;
   counselorId: string | null;
+  /** 수술 참여 직원 (F-11) */
+  participants: { staffId: string; name: string; role: import("@/lib/domain/staff").StaffRole }[];
   /** 단가(원)·할인율(%) — F-6 */
   listPrice: number;
   discountRate: number;

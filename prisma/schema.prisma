@@ -199,14 +199,16 @@ model Staff {
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
 
   sessions                Session[]
-  patientsCreated         Patient[]        @relation("PatientCreatedBy")
-  consentsRecorded        Consent[]        @relation("ConsentRecordedBy")
-  appointmentsAsDoctor    Appointment[]    @relation("AppointmentDoctor")
-  appointmentsAsCounselor Appointment[]    @relation("AppointmentCounselor")
-  appointmentsCreated     Appointment[]    @relation("AppointmentCreatedBy")
+  patientsCreated         Patient[]                @relation("PatientCreatedBy")
+  consentsRecorded        Consent[]                @relation("ConsentRecordedBy")
+  appointmentsAsDoctor    Appointment[]            @relation("AppointmentDoctor")
+  appointmentsAsCounselor Appointment[]            @relation("AppointmentCounselor")
+  appointmentsCreated     Appointment[]            @relation("AppointmentCreatedBy")
   visitStatusLogs         VisitStatusLog[]
   consultations           Consultation[]
   clinicSettingsUpdated   ClinicSetting[]
+  surgeryParticipations   AppointmentParticipant[] @relation("ParticipantStaff")
+  surgeryNotesWritten     SurgeryNote[]            @relation("SurgeryNoteAuthor")
 
   @@map("staff")
 }
@@ -257,15 +259,17 @@ model Appointment {
   createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
   updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
 
-  patient             Patient                @relation(fields: [patientId], references: [id])
-  doctor              Staff?                 @relation("AppointmentDoctor", fields: [doctorId], references: [id])
-  counselor           Staff?                 @relation("AppointmentCounselor", fields: [counselorId], references: [id])
-  createdBy           Staff?                 @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
-  originalAppointment Appointment?           @relation("AppointmentReschedule", fields: [originalAppointmentId], references: [id])
-  rescheduledTo       Appointment?           @relation("AppointmentReschedule")
+  patient             Patient                  @relation(fields: [patientId], references: [id])
+  doctor              Staff?                   @relation("AppointmentDoctor", fields: [doctorId], references: [id])
+  counselor           Staff?                   @relation("AppointmentCounselor", fields: [counselorId], references: [id])
+  createdBy           Staff?                   @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
+  originalAppointment Appointment?             @relation("AppointmentReschedule", fields: [originalAppointmentId], references: [id])
+  rescheduledTo       Appointment?             @relation("AppointmentReschedule")
   statusLogs          VisitStatusLog[]
   consultation        Consultation?
   labels              AppointmentLabelLink[]
+  participants        AppointmentParticipant[]
+  surgeryNote         SurgeryNote?
 
   @@index([startAt])
   @@index([patientId, startAt])
@@ -392,4 +396,31 @@ model AppointmentLabelLink {
   @@id([appointmentId, labelId])
   @@index([labelId])
   @@map("appointment_label_link")
+}
+
+/// 수술 참여 직원 (F-11) — 예약에 들어간 간호·의사 등. 예약을 볼 수 있는 직원은 명단을 본다.
+model AppointmentParticipant {
+  appointmentId String   @map("appointment_id") @db.Uuid // 예약
+  staffId       String   @map("staff_id") @db.Uuid // 참여 직원
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3) // 기록 시각
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  staff       Staff       @relation("ParticipantStaff", fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@id([appointmentId, staffId])
+  @@index([staffId])
+  @@map("appointment_participant")
+}
+
+/// 수술 메모 (F-11) — 수술 중 실수 등 직원 관련 메모. 원장·관리자만 쓰고 본다(조회는 감사 로그). 진단·처방은 적지 않는다(절대 규칙 3).
+model SurgeryNote {
+  appointmentId String   @id @map("appointment_id") @db.Uuid // 예약 (예약당 하나)
+  content       String // 메모
+  updatedById   String   @map("updated_by_id") @db.Uuid // 마지막으로 쓴 직원
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  updatedBy   Staff       @relation("SurgeryNoteAuthor", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("surgery_note")
 }

@@ -14,6 +14,7 @@ import {
   minutesToTime,
 } from "@/lib/calendar/layout";
 import type { ClinicSettings } from "@/lib/domain/clinic";
+import type { StaffRole } from "@/lib/domain/staff";
 import {
   addDays,
   type DateKey,
@@ -94,6 +95,7 @@ export function CalendarScreen() {
       settings={settings.data}
       doctors={doctors.data.staff}
       canWrite={can(me.data.role, "appointment.write")}
+      role={me.data.role}
       canEditStyle={can(me.data.role, "settings.write")}
       style={calendarStyle.data ?? FALLBACK_STYLE}
       styleReady={calendarStyle.isSuccess}
@@ -105,6 +107,7 @@ function Calendar({
   settings,
   doctors,
   canWrite,
+  role,
   canEditStyle,
   style,
   styleReady,
@@ -112,6 +115,7 @@ function Calendar({
   settings: ClinicSettings;
   doctors: DoctorOption[];
   canWrite: boolean;
+  role: StaffRole;
   /** [편집] 탭 — 관리자만 (F-2) */
   canEditStyle: boolean;
   style: CalendarStyle;
@@ -334,6 +338,7 @@ function Calendar({
           settings={settings}
           doctors={doctors}
           canWrite={canWrite}
+          role={role}
           style={paintStyle}
           today={today}
           onClose={() => setOpened(null)}

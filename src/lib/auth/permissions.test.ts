@@ -17,6 +17,8 @@ const EXPECTED: Record<Permission, [boolean, boolean, boolean, boolean, boolean]
   "staff.manage": /*            */ [false, false, false, false, true],
   "consult.read": /*            */ [false, true, true, false, true],
   "consult.write": /*           */ [false, true, false, false, true],
+  "surgery.record": /*          */ [true, true, true, true, true],
+  "surgery.note": /*            */ [false, false, true, false, true],
   "data.import": /*             */ [false, false, false, false, true],
 };
 
