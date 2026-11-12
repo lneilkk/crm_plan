@@ -90,11 +90,11 @@ export function AppointmentEditSection({
     </p>
   );
 
-  if (!canWrite) return <div className="rounded-lg bg-slate-50 p-3">{priceLine}</div>;
+  if (!canWrite) return null;
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3" aria-label="예약 고치기">
-      <p className="text-base font-semibold text-slate-800">예약 고치기</p>
+      <p className="text-base font-semibold text-slate-800">예약 고치기 — 바꾼 뒤 [예약 저장]</p>
       {placementEditable ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>

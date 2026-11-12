@@ -33,6 +33,9 @@ test.describe("예약 고치기와 실적", () => {
     const block = page.locator(`[data-appointment-id="${id}"]`);
     await block.click();
     const dialog = page.getByRole("dialog", { name: "예약 상세" });
+    // 보기가 기본, [고치기]를 눌러야 양식이 나온다 (F-12)
+    await expect(dialog.getByRole("form", { name: "예약 고치기" })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "고치기", exact: true }).click();
     const form = dialog.getByRole("form", { name: "예약 고치기" });
     await form.getByLabel("예약 항목").selectOption("스케일링");
     await expect(form.getByText("일반 진료는 상담실에 둘 수 없습니다. 진료 체어를 고르세요.")).toBeVisible();
@@ -40,9 +43,11 @@ test.describe("예약 고치기와 실적", () => {
     await form.getByLabel("메모").fill("상담 후 스케일링으로 변경");
     await form.getByRole("button", { name: "예약 저장" }).click();
     await expect(page.getByRole("status").filter({ hasText: "예약을 저장했습니다." })).toBeVisible();
-    await dialog.getByRole("button", { name: "닫기" }).click();
+    await dialog.getByRole("button", { name: "닫기", exact: true }).click();
 
     await expect(block).toHaveAttribute("aria-label", /스케일링 .* 예약, 메모 있음$/);
+    // 현재 시각 선 (F-13): 오늘 일 보기에 하나 (예약을 지금 뒤에 만들었으므로 격자 안에 있다)
+    await expect(page.getByTestId("now-line")).toHaveCount(1);
     const check = await apiAs("front1");
     const detail = (await (await check.get(`/api/appointments/${id}`)).json()) as { appointment: { chair: string; listPrice: number } };
     expect(detail.appointment.chair).toBe("E1");

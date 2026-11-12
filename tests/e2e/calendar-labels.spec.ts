@@ -55,11 +55,12 @@ test.describe("예약 색 라벨과 칸 크기", () => {
 
     await block.click();
     const dialog = page.getByRole("dialog", { name: "예약 상세" });
+    await dialog.getByRole("button", { name: "고치기", exact: true }).click();
     await dialog.getByRole("button", { name: "200", exact: true }).click();
     await dialog.getByRole("button", { name: "vip", exact: true }).click();
     await dialog.getByRole("button", { name: "라벨 저장" }).click();
     await expect(page.getByRole("status").filter({ hasText: "라벨을 저장했습니다." })).toBeVisible();
-    await dialog.getByRole("button", { name: "닫기" }).click();
+    await dialog.getByRole("button", { name: "닫기", exact: true }).click();
     const hex = vip.color.replace("#", "");
     const rgb = `rgb(${parseInt(hex.slice(0, 2), 16)}, ${parseInt(hex.slice(2, 4), 16)}, ${parseInt(hex.slice(4, 6), 16)})`;
     await expect(block).toHaveCSS("background-color", rgb);

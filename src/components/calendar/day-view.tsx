@@ -15,7 +15,7 @@ import {
   rowStarts,
 } from "@/lib/calendar/layout";
 import { isPendingStatus } from "@/lib/domain/appointment";
-import type { DateKey } from "@/lib/time/kst";
+import { type DateKey, kstDateKey, kstMinutesOfDay } from "@/lib/time/kst";
 import { Badge, cn } from "@/components/ui";
 import { blockPaint, type CalendarStyle, type ColumnWidth, columnTrack, labelNames, StatusTag } from "./calendar-style";
 import { type CalendarAppointment, isDimmedStatus } from "./types";
@@ -25,6 +25,19 @@ export const DRAG_SNAP_MIN = 10;
 /** 손이 살짝 떨린 것은 클릭으로 본다 */
 const DRAG_THRESHOLD_PX = 5;
 const MIN_BLOCK_PX = 26;
+
+/** 현재 시각 선을 옮기는 간격 */
+const NOW_TICK_MS = 30_000;
+
+/** 지금 시각(ms). 간격마다 다시 그린다. */
+function useNow(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
 
 export type MoveTarget = { start: number; chair?: string };
 
@@ -84,6 +97,10 @@ export function DayView({
 }) {
   const track = columnTrack(columnWidth);
   const columnsRef = useRef<HTMLDivElement>(null);
+  const now = useNow(NOW_TICK_MS);
+  // 현재 시각 선 (F-13): 오늘이고 격자 안일 때만
+  const nowMinutes = kstDateKey(new Date(now)) === date ? kstMinutesOfDay(new Date(now)) : null;
+  const showNow = nowMinutes !== null && nowMinutes >= range.start && nowMinutes <= range.end;
   const justDragged = useRef(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const rows = rowStarts(range);
@@ -218,6 +235,18 @@ export function DayView({
           className="relative grid flex-1"
           style={{ gridTemplateColumns: `repeat(${columns.length}, ${track})`, height: heightPx }}
         >
+          {showNow && (
+            <div
+              aria-hidden
+              data-testid="now-line"
+              className="pointer-events-none absolute inset-x-0 z-30 border-t-2 border-red-600"
+              style={{ top: (nowMinutes! - range.start) * pxPerMin }}
+            >
+              <span className="absolute -top-2.5 left-0 rounded bg-red-600 px-1 text-xs font-bold text-white tabular-nums">
+                {minutesToTime(nowMinutes!)}
+              </span>
+            </div>
+          )}
           {columns.map((column, columnIndex) => {
             const entry = byColumn.get(column.key);
             const cellName = column.chair ?? column.label;

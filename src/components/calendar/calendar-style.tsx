@@ -19,7 +19,12 @@ import { isDimmedStatus } from "./types";
  * 색 값은 서버가 #RRGGBB로 검사한 값만 style에 넣는다.
  */
 
-export type CalendarStyle = { labels: CalendarLabel[]; statusStyles: StatusStyles };
+export type CalendarStyle = {
+  labels: CalendarLabel[];
+  statusStyles: StatusStyles;
+  /** 예약 항목별 칸 색 (F-9) — 화면이 병원 설정에서 채운다 */
+  itemColors?: Record<string, string>;
+};
 
 export const CALENDAR_STYLE_QUERY_KEY = ["calendar-style"] as const;
 
@@ -34,14 +39,14 @@ export function useCalendarStyle() {
 /** 불러오기 전·실패 시에도 칸을 그릴 수 있는 기본값 */
 export const FALLBACK_STYLE: CalendarStyle = { labels: [], statusStyles: DEFAULT_STATUS_STYLES };
 
-/** 예약 칸 색: 대표 라벨 색(없으면 상태 색) 바탕, 왼쪽 굵은 띠는 상태 색 */
+/** 예약 칸 색: 대표 라벨 색 → 예약 항목 색(F-9) → 상태 색 순서의 바탕, 왼쪽 굵은 띠는 상태 색 */
 export function blockPaint(
-  item: { status: AppointmentStatus; labelIds: readonly string[] },
+  item: { status: AppointmentStatus; labelIds: readonly string[]; treatmentItem: string },
   style: CalendarStyle,
 ): { style: CSSProperties; className: string } {
   const status = style.statusStyles[item.status];
   const label = representativeLabel(item.labelIds, style.labels);
-  const background = label?.color ?? status.color;
+  const background = label?.color ?? style.itemColors?.[item.treatmentItem] ?? status.color;
   return {
     style: { backgroundColor: background, color: readableTextColor(background), borderLeftColor: status.color },
     className: cn("border-slate-900/20", isDimmedStatus(item.status) && "opacity-55"),
@@ -81,10 +86,15 @@ const LEGEND_STATUSES: AppointmentStatus[] = ["BOOKED", "CONFIRMED", "ARRIVED", 
 
 export function CalendarLegend({ style }: { style: CalendarStyle }) {
   const labels = style.labels.filter((label) => label.isActive);
+  const items = Object.entries(style.itemColors ?? {});
   return (
     <div aria-label="색 범례" className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-slate-800">
       {LEGEND_STATUSES.map((status) => (
         <ColorChip key={status} color={style.statusStyles[status].color} name={style.statusStyles[status].name} />
+      ))}
+      {items.length > 0 && <span aria-hidden className="text-slate-300">|</span>}
+      {items.map(([item, color]) => (
+        <ColorChip key={`item-${item}`} color={color} name={item} />
       ))}
       {labels.length > 0 && <span aria-hidden className="text-slate-300">|</span>}
       {labels.map((label) => (

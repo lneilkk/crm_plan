@@ -35,7 +35,11 @@ const settingsSchema = z.object({
   treatmentItems: z.array(z.string().min(1)),
   treatmentItemMeta: z.record(
     z.string(),
-    z.object({ category: z.enum(TREATMENT_CATEGORIES), price: z.number().int().min(0).max(PRICE_MAX) }),
+    z.object({
+      category: z.enum(TREATMENT_CATEGORIES),
+      price: z.number().int().min(0).max(PRICE_MAX),
+      color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    }),
   ),
 }) satisfies z.ZodType<ClinicSettings>;
 

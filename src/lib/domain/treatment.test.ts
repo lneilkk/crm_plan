@@ -31,3 +31,13 @@ describe("amountAfterDiscount", () => {
     expect(() => amountAfterDiscount(1000, 1.5)).toThrow(RangeError);
   });
 });
+
+describe("treatmentColorOf (F-9 항목별 칸 색)", () => {
+  it("설정의 색 → 기본 항목 색 → 없음 순서", async () => {
+    const { treatmentColorOf } = await import("./treatment");
+    expect(treatmentColorOf({ 임플란트: { category: "PREMIUM", price: 1, color: "#123abc" } }, "임플란트")).toBe("#123ABC");
+    expect(treatmentColorOf({}, "임플란트")).toBe(DEFAULT_TREATMENT_ITEM_META.임플란트.color);
+    expect(treatmentColorOf({ 새항목: { category: "GENERAL", price: 0 } }, "새항목")).toBeNull();
+    expect(treatmentColorOf({ 임플란트: { category: "PREMIUM", price: 1, color: "red" } }, "임플란트")).toBe(DEFAULT_TREATMENT_ITEM_META.임플란트.color);
+  });
+});

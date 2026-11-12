@@ -9,17 +9,19 @@ import {
   TREATMENT_CATEGORIES,
   TREATMENT_CATEGORY_LABEL,
   type TreatmentCategory,
+  treatmentColorOf,
   treatmentMetaOf,
 } from "@/lib/domain/treatment";
+import { isHexColor } from "@/lib/calendar/colors";
 import { Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
 
-type Draft = { key: string; name: string; category: TreatmentCategory; price: string };
+type Draft = { key: string; name: string; category: TreatmentCategory; price: string; color: string };
 
 let seq = 0;
 const toDraft = (settings: ClinicSettings): Draft[] =>
   settings.treatmentItems.map((name) => {
     const meta = treatmentMetaOf(settings.treatmentItemMeta, name);
-    return { key: `i-${(seq += 1)}`, name, category: meta.category, price: String(meta.price) };
+    return { key: `i-${(seq += 1)}`, name, category: meta.category, price: String(meta.price), color: treatmentColorOf(settings.treatmentItemMeta, name) ?? "#E0E0E0" };
   });
 
 /**
@@ -36,12 +38,15 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
   if (names.some((name) => !name)) problems.push("이름이 빈 예약 항목이 있습니다.");
   if (new Set(names.filter(Boolean)).size !== names.filter(Boolean).length) problems.push("같은 이름의 예약 항목이 있습니다.");
   if (items.some((item) => !/^\d+$/.test(item.price) || Number(item.price) > PRICE_MAX)) problems.push("단가는 0 이상의 원 단위 숫자로 입력하세요.");
+  if (items.some((item) => !isHexColor(item.color))) problems.push("색은 #RRGGBB 형식이어야 합니다.");
 
   const save = useMutation({
     mutationFn: () =>
       apiFetch("/api/settings/treatment-items", {
         method: "PUT",
-        body: { items: items.map((item) => ({ name: item.name.trim(), category: item.category, price: Number(item.price) })) },
+        body: {
+          items: items.map((item) => ({ name: item.name.trim(), category: item.category, price: Number(item.price), color: item.color })),
+        },
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -76,6 +81,13 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
             <Button variant="ghost" aria-label={`${item.name} 아래로`} disabled={index === items.length - 1} onClick={() => move(index, 1)}>
               ▼
             </Button>
+            <input
+              type="color"
+              aria-label={`${item.name || "새 항목"} 칸 색`}
+              className="h-11 w-12 cursor-pointer rounded border border-slate-300 bg-white p-1"
+              value={isHexColor(item.color) ? item.color.toLowerCase() : "#e0e0e0"}
+              onChange={(e) => update(item.key, { color: e.target.value.toUpperCase() })}
+            />
             <Input aria-label={`예약 항목 ${index + 1} 이름`} className="w-40" maxLength={30} value={item.name} onChange={(e) => update(item.key, { name: e.target.value })} />
             <Select
               aria-label={`${item.name || "새 항목"} 구분`}
@@ -106,7 +118,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
         ))}
       </ol>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button variant="secondary" onClick={() => setItems((list) => [...list, { key: `i-${(seq += 1)}`, name: "", category: "GENERAL", price: "0" }])}>
+        <Button variant="secondary" onClick={() => setItems((list) => [...list, { key: `i-${(seq += 1)}`, name: "", category: "GENERAL", price: "0", color: "#E0E0E0" }])}>
           + 예약 항목 추가
         </Button>
         <Button disabled={problems.length > 0 || save.isPending} onClick={() => save.mutate()}>

@@ -40,6 +40,7 @@ import {
   useViewportHeight,
 } from "./calendar-style";
 import { CalendarStyleEditor } from "./calendar-style-editor";
+import { treatmentColorOf } from "@/lib/domain/treatment";
 import { TreatmentItemsEditor } from "./treatment-items-editor";
 import { DayView, type MoveTarget } from "./day-view";
 import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } from "./types";
@@ -118,6 +119,16 @@ function Calendar({
   styleReady: boolean;
 }) {
   const [tab, setTab] = useState<"calendar" | "edit">("calendar");
+  // 예약 항목별 칸 색 (F-9)
+  const paintStyle: CalendarStyle = {
+    ...style,
+    itemColors: Object.fromEntries(
+      settings.treatmentItems.flatMap((item) => {
+        const color = treatmentColorOf(settings.treatmentItemMeta, item);
+        return color ? [[item, color]] : [];
+      }),
+    ),
+  };
   const [size, setSize] = useCalendarSize();
   const queryClient = useQueryClient();
   const [today, setToday] = useState(() => kstDateKey(new Date()));
@@ -262,7 +273,7 @@ function Calendar({
       </div>
 
       <SizeControls size={size} onChange={setSize} showWidth={view === "day"} />
-      <CalendarLegend style={style} />
+      <CalendarLegend style={paintStyle} />
 
       {appointments.isError && !appointments.data ? (
         <EmptyState
@@ -278,7 +289,7 @@ function Calendar({
           businessHours={settings.businessHours}
           chairName={chairName}
           appointments={items}
-          style={style}
+          style={paintStyle}
           onOpenDay={(day) => {
             setDate(day);
             setView("day");
@@ -295,7 +306,7 @@ function Calendar({
           items={items}
           canWrite={canWrite}
           pendingMove={pendingMove}
-          style={style}
+          style={paintStyle}
           size={size}
           onGoTo={setDate}
           onCellClick={openBooking}
@@ -331,7 +342,7 @@ function Calendar({
           settings={settings}
           doctors={doctors}
           canWrite={canWrite}
-          style={style}
+          style={paintStyle}
           today={today}
           onClose={() => setOpened(null)}
           onMoved={refresh}

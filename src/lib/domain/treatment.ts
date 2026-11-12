@@ -18,7 +18,8 @@ export const TREATMENT_CATEGORY_LABEL: Record<TreatmentCategory, string> = {
   GENERAL: "일반",
 };
 
-export type TreatmentMeta = { category: TreatmentCategory; price: number };
+/** color: 캘린더 칸 색(#RRGGBB, F-9). 없으면 기본 항목 색, 그것도 없으면 상태 색 */
+export type TreatmentMeta = { category: TreatmentCategory; price: number; color?: string };
 /** 항목 이름 → 구분·단가 (clinic_setting.treatment_item_meta) */
 export type TreatmentItemMeta = Record<string, TreatmentMeta>;
 
@@ -26,21 +27,28 @@ export const PRICE_MAX = 100_000_000;
 
 /** 기본 구분·단가. 단가는 예시 값이다 — 관리자가 캘린더 [편집] 탭에서 병원 실제 단가로 바꾼다. */
 export const DEFAULT_TREATMENT_ITEM_META: TreatmentItemMeta = {
-  정기검진: { category: "GENERAL", price: 20_000 },
-  스케일링: { category: "GENERAL", price: 15_000 },
-  "충치 치료": { category: "GENERAL", price: 50_000 },
-  "신경 치료": { category: "GENERAL", price: 150_000 },
-  발치: { category: "GENERAL", price: 50_000 },
-  미백: { category: "GENERAL", price: 300_000 },
-  임플란트: { category: "PREMIUM", price: 1_200_000 },
-  라미네이트: { category: "PREMIUM", price: 600_000 },
-  교정: { category: "PREMIUM", price: 3_000_000 },
-  보철: { category: "PREMIUM", price: 500_000 },
-  상담: { category: "PREMIUM", price: 0 },
+  정기검진: { category: "GENERAL", price: 20_000, color: "#90CAF9" },
+  스케일링: { category: "GENERAL", price: 15_000, color: "#80DEEA" },
+  "충치 치료": { category: "GENERAL", price: 50_000, color: "#A5D6A7" },
+  "신경 치료": { category: "GENERAL", price: 150_000, color: "#FFCC80" },
+  발치: { category: "GENERAL", price: 50_000, color: "#BCAAA4" },
+  미백: { category: "GENERAL", price: 300_000, color: "#F8BBD0" },
+  임플란트: { category: "PREMIUM", price: 1_200_000, color: "#9575CD" },
+  라미네이트: { category: "PREMIUM", price: 600_000, color: "#F06292" },
+  교정: { category: "PREMIUM", price: 3_000_000, color: "#4DB6AC" },
+  보철: { category: "PREMIUM", price: 500_000, color: "#A1887F" },
+  상담: { category: "PREMIUM", price: 0, color: "#FFD54F" },
 };
 
 export function treatmentMetaOf(meta: TreatmentItemMeta, item: string): TreatmentMeta {
   return Object.hasOwn(meta, item) ? meta[item] : { category: "GENERAL", price: 0 };
+}
+
+/** 항목의 칸 색: 설정의 색 → 기본 항목 색 → null(상태 색을 쓴다) */
+export function treatmentColorOf(meta: TreatmentItemMeta, item: string): string | null {
+  const stored = Object.hasOwn(meta, item) ? meta[item].color : undefined;
+  if (stored && /^#[0-9A-Fa-f]{6}$/.test(stored)) return stored.toUpperCase();
+  return Object.hasOwn(DEFAULT_TREATMENT_ITEM_META, item) ? (DEFAULT_TREATMENT_ITEM_META[item].color ?? null) : null;
 }
 
 export function isPremiumItem(meta: TreatmentItemMeta, item: string): boolean {

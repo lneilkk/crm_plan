@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isHexColor } from "@/lib/calendar/colors";
 import { PRICE_MAX, TREATMENT_CATEGORIES } from "@/lib/domain/treatment";
 import { containsResidentRegistrationNumber, RRN_FIELD_CODE } from "@/lib/validation/forbidden-text";
 import { defineRoute } from "@/server/api/define-route";
@@ -20,6 +21,8 @@ const body = z.strictObject({
           .refine((value) => !containsResidentRegistrationNumber(value), { message: RRN_FIELD_CODE }),
         category: z.enum(TREATMENT_CATEGORIES),
         price: z.number().int().min(0).max(PRICE_MAX),
+        /** 캘린더 칸 색 (F-9) */
+        color: z.string().refine(isHexColor, { message: "color" }).optional(),
       }),
     )
     .min(1)

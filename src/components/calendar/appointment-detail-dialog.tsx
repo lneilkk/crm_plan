@@ -21,6 +21,7 @@ import {
   kstDateTime,
   kstMinutesOfDay,
 } from "@/lib/time/kst";
+import { amountAfterDiscount } from "@/lib/domain/treatment";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
 import { AppointmentEditSection } from "./appointment-edit-section";
 import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
@@ -142,6 +143,10 @@ function DetailBody({
   onLabelsSaved: () => void;
 }) {
   const start = new Date(data.startAt);
+  // 보기가 기본이고, [고치기]를 눌렀을 때만 수정 양식·라벨 고르기가 보인다 (F-12)
+  const [editing, setEditing] = useState(false);
+  const amount = amountAfterDiscount(data.listPrice, data.discountRate);
+  const labelNamesShown = style.labels.filter((label) => data.labelIds.includes(label.id));
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -166,23 +171,56 @@ function DetailBody({
         <Row label="채널">{APPOINTMENT_CHANNEL_LABEL[data.channel]}</Row>
         {data.arrivedAt && <Row label="내원 시각">{dateTimeLabel(data.arrivedAt)}</Row>}
         {data.originalAppointmentId && <Row label="변경 전 예약">있음 (예약변경으로 만든 예약)</Row>}
+        <Row label="금액">
+          {data.listPrice.toLocaleString("ko-KR")}원{data.discountRate > 0 && ` · 할인 ${data.discountRate}%`} →{" "}
+          <strong>{amount.toLocaleString("ko-KR")}원</strong>
+        </Row>
+        <Row label="색 라벨">
+          {labelNamesShown.length === 0 ? (
+            "-"
+          ) : (
+            <span className="flex flex-wrap gap-3">
+              {labelNamesShown.map((label) => (
+                <ColorChip key={label.id} color={label.color} name={label.name} />
+              ))}
+            </span>
+          )}
+        </Row>
         <Row label="메모">
           <span className="whitespace-pre-wrap">{data.memo ?? "-"}</span>
         </Row>
         <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
       </dl>
 
-      <AppointmentEditSection
-        key={`${data.treatmentItem}|${data.chair}|${data.doctorId}|${data.counselorId}|${data.discountRate}|${data.memo}`}
-        data={data}
-        settings={settings}
-        doctors={doctors}
-        canWrite={canWrite}
-        today={today}
-        onSaved={onEdited}
-      />
-
-      <LabelSection key={data.labelIds.join(",")} appointmentId={data.id} saved={data.labelIds} style={style} canWrite={canWrite} onSaved={onLabelsSaved} />
+      {canWrite && !editing && (
+        <div>
+          <Button variant="secondary" onClick={() => setEditing(true)}>
+            고치기
+          </Button>
+        </div>
+      )}
+      {canWrite && editing && (
+        <div className="flex flex-col gap-3 rounded-lg border-2 border-blue-200 p-3">
+          <AppointmentEditSection
+            key={`${data.treatmentItem}|${data.chair}|${data.doctorId}|${data.counselorId}|${data.discountRate}|${data.memo}`}
+            data={data}
+            settings={settings}
+            doctors={doctors}
+            canWrite={canWrite}
+            today={today}
+            onSaved={() => {
+              setEditing(false);
+              onEdited();
+            }}
+          />
+          <LabelSection key={data.labelIds.join(",")} appointmentId={data.id} saved={data.labelIds} style={style} canWrite={canWrite} onSaved={onLabelsSaved} />
+          <div>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              고치기 닫기
+            </Button>
+          </div>
+        </div>
+      )}
 
       {canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (
         <MoveForm data={data} chairs={chairs} onMoved={onMoved} />
