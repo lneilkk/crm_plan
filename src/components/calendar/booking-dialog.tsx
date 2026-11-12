@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import { APPOINTMENT_CHANNEL_LABEL, type AppointmentChannel } from "@/lib/domain/appointment";
 import type { ClinicSettings } from "@/lib/domain/clinic";
+import { isPremiumItem } from "@/lib/domain/treatment";
 import { maskName } from "@/lib/masking";
 import { normalizePhone } from "@/lib/phone";
 import { type DateKey, isValidDateKey, isValidTime, kstDateKey, kstDateTime } from "@/lib/time/kst";
@@ -60,6 +61,15 @@ export function BookingDialog({
   const [channel, setChannel] = useState<(typeof BOOKING_CHANNELS)[number]>("PHONE");
   const [memo, setMemo] = useState("");
   const [labelIds, setLabelIds] = useState<string[]>([]);
+  const [counselorId, setCounselorId] = useState("");
+  const counselors = useQuery({
+    queryKey: ["staff", "COUNSELOR"],
+    queryFn: () => apiFetch<{ staff: DoctorOption[] }>("/api/staff?role=COUNSELOR"),
+    staleTime: 60_000,
+  });
+  // 상담실에는 고가(상담 대상) 항목만 (F-5)
+  const inConsultRoom = settings.chairs.find((c) => c.code === chair)?.kind === "CONSULT_ROOM";
+  const itemChoices = settings.treatmentItems.filter((item) => !inConsultRoom || isPremiumItem(settings.treatmentItemMeta, item));
   const [errors, setErrors] = useState<string[]>([]);
 
   const durationMin = durationPreset === "custom" ? Number(customDuration) : Number(durationPreset);
@@ -73,6 +83,7 @@ export function BookingDialog({
           startAt: kstDateTime(date, time).toISOString(),
           durationMin,
           doctorId: doctorId || null,
+          counselorId: counselorId || null,
           chair,
           treatmentItem,
           channel,
@@ -163,7 +174,18 @@ export function BookingDialog({
           </div>
           <div>
             <Label htmlFor="booking-chair">체어</Label>
-            <Select id="booking-chair" value={chair} onChange={(e) => setChair(e.target.value)}>
+            <Select
+              id="booking-chair"
+              value={chair}
+              onChange={(e) => {
+                const next = e.target.value;
+                setChair(next);
+                // 상담실로 바꿨는데 일반 항목이 골라져 있으면 항목을 비운다
+                if (settings.chairs.find((c) => c.code === next)?.kind === "CONSULT_ROOM" && treatmentItem && !isPremiumItem(settings.treatmentItemMeta, treatmentItem)) {
+                  setTreatmentItem("");
+                }
+              }}
+            >
               {settings.chairs.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.name} ({c.code})
@@ -186,9 +208,22 @@ export function BookingDialog({
             <Label htmlFor="booking-item">예약 항목</Label>
             <Select id="booking-item" value={treatmentItem} onChange={(e) => setTreatmentItem(e.target.value)}>
               <option value="">선택하세요</option>
-              {settings.treatmentItems.map((item) => (
+              {itemChoices.map((item) => (
                 <option key={item} value={item}>
                   {item}
+                  {isPremiumItem(settings.treatmentItemMeta, item) ? " (고가)" : ""}
+                </option>
+              ))}
+            </Select>
+            {inConsultRoom && <p className="mt-1 text-sm text-slate-500">상담실에는 고가(상담 대상) 항목만 넣을 수 있습니다.</p>}
+          </div>
+          <div>
+            <Label htmlFor="booking-counselor">상담자</Label>
+            <Select id="booking-counselor" value={counselorId} onChange={(e) => setCounselorId(e.target.value)}>
+              <option value="">미지정</option>
+              {(counselors.data?.staff ?? []).map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
                 </option>
               ))}
             </Select>

@@ -5,7 +5,7 @@ import { isPendingStatus, PENDING_STATUSES } from "@/lib/domain/appointment";
 import { kstDateKey } from "@/lib/time/kst";
 import { ApiError } from "@/server/api/errors";
 import { db, type DbClient } from "@/server/db";
-import { assertChair, assertDuration, chairConflictError, endAtOf, isChairOverlapError } from "./create";
+import { assertChair, assertConsultRoomItem, assertDuration, chairConflictError, endAtOf, isChairOverlapError } from "./create";
 import { getClinicSettings } from "./settings";
 
 /**
@@ -43,7 +43,11 @@ export async function moveAppointment(
 
   const chair = input.chair ?? before.chair;
   const durationMin = input.durationMin ?? before.durationMin;
-  if (input.chair !== undefined) assertChair(await getClinicSettings(client), chair);
+  if (input.chair !== undefined) {
+    const settings = await getClinicSettings(client);
+    assertChair(settings, chair);
+    assertConsultRoomItem(settings, chair, before.treatmentItem);
+  }
   assertDuration(durationMin);
 
   try {

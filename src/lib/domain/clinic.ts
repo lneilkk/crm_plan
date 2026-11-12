@@ -1,3 +1,5 @@
+import { DEFAULT_TREATMENT_ITEM_META, type TreatmentItemMeta } from "./treatment";
+
 /**
  * 병원 설정 — 기획서 6장("병원 설정 테이블에 허용 지각 시간, 노쇼 유예 시간을 둔다"), T4-4 기준.
  * clinic_setting 테이블(1행)에 저장되는 값의 형태다.
@@ -27,6 +29,8 @@ export type ClinicSettings = {
   chairs: Chair[];
   /** 예약 항목(진료 항목) 목록 — 예약 분류용 이름이며 진료기록이 아니다 */
   treatmentItems: string[];
+  /** 예약 항목별 구분(고가·일반)과 단가 (F-5·F-6). 목록에 없는 항목은 일반·0원 */
+  treatmentItemMeta: TreatmentItemMeta;
 };
 
 export const DEFAULT_LATE_TOLERANCE_MIN = 15;
@@ -55,5 +59,6 @@ export const DEFAULT_CLINIC_SETTINGS: ClinicSettings = {
     { code: "C4", name: "체어 4", kind: "CHAIR" },
     { code: "R1", name: "상담실", kind: "CONSULT_ROOM" },
   ],
-  treatmentItems: ["정기검진", "스케일링", "충치 치료", "신경 치료", "발치", "임플란트", "교정", "보철", "미백", "상담"],
+  treatmentItems: ["정기검진", "스케일링", "충치 치료", "신경 치료", "발치", "임플란트", "라미네이트", "교정", "보철", "미백", "상담"],
+  treatmentItemMeta: DEFAULT_TREATMENT_ITEM_META,
 };

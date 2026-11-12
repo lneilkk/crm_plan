@@ -68,6 +68,8 @@ export async function listAppointments(filter: AppointmentFilter) {
     isNewPatient: isNew({ id: row.patientId, visitType: row.patient.visitType }, row.startAt),
     referralSource: row.patient.referralSource,
     labelIds: row.labels.map((link) => link.labelId),
+    /** 메모가 있는지만 (내용은 상세에서) — F-8 */
+    hasMemo: row.memo !== null && row.memo.length > 0,
   }));
 }
 
@@ -107,6 +109,8 @@ export async function getAppointmentDetail(id: string) {
     arrivedAt: row.arrivedAt,
     originalAppointmentId: row.originalAppointmentId,
     memo: row.memo,
+    listPrice: row.listPrice,
+    discountRate: row.discountRate,
     labelIds: row.labels.map((link) => link.labelId),
     createdAt: row.createdAt,
     history: row.statusLogs.map((entry) => ({

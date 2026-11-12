@@ -16,6 +16,7 @@
  *
  * "server-only"를 import하는 모듈을 Next.js 밖에서 쓰므로 Node 옵션 --conditions=react-server로 실행한다.
  */
+import { DEFAULT_TREATMENT_ITEM_META, isPremiumItem, treatmentMetaOf, type TreatmentItemMeta } from "@/lib/domain/treatment";
 import { randomBytes, randomInt } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -28,6 +29,8 @@ import { generateFakeData, type FakeAppointment, type FakeData, type FakeStatusL
 /** 생성기의 직원 키 = 시드 계정의 login_id (prisma/seed.ts) */
 export const FAKE_DOCTOR_KEYS = ["doctor1", "doctor2"];
 export const FAKE_FRONT_KEYS = ["front1"];
+/** 고가 항목 예약에 상담자로 넣는 시드 계정 (없으면 비워 둔다) */
+export const FAKE_COUNSELOR_KEY = "counselor1";
 
 const DEFAULT_PATIENT_COUNT = 500;
 const MAX_PATIENT_COUNT = 100_000;
@@ -192,6 +195,11 @@ export async function insertFakeData(db: PrismaClient, generated: FakeData, opti
       }
       const staffId = (key: string) => staffIds.get(key) as string;
 
+      // F-6: 예약 단가(설정의 항목 단가)와, 고가 항목 예약의 상담자(시드 상담 계정이 있으면). 무작위 값을 쓰지 않아 seed 재현성을 지킨다.
+      const setting = await tx.clinicSetting.findUnique({ where: { id: 1 }, select: { treatmentItemMeta: true } });
+      const itemMeta = (setting?.treatmentItemMeta as TreatmentItemMeta | null) ?? DEFAULT_TREATMENT_ITEM_META;
+      const counselor = await tx.staff.findUnique({ where: { loginId: FAKE_COUNSELOR_KEY }, select: { id: true } });
+
       // --append: 기존 예약과 겹치는 예약을 빼고, 이미 쓰인 차트번호를 비운다.
       let data = generated;
       let skipped = 0;
@@ -263,6 +271,8 @@ export async function insertFakeData(db: PrismaClient, generated: FakeData, opti
           doctorId: staffId(appointment.doctorKey),
           chair: appointment.chairCode,
           treatmentItem: appointment.treatmentItem,
+          listPrice: treatmentMetaOf(itemMeta, appointment.treatmentItem).price,
+          counselorId: counselor && isPremiumItem(itemMeta, appointment.treatmentItem) ? counselor.id : null,
           channel: appointment.channel,
           status: appointment.status,
           arrivedAt: appointment.arrivedAt,

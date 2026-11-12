@@ -265,7 +265,7 @@ export function DayView({
                       key={item.id}
                       type="button"
                       data-appointment-id={item.id}
-                      aria-label={`${time} ${item.patientNameMasked} ${item.treatmentItem} ${status} 예약`}
+                      aria-label={`${time} ${item.patientNameMasked} ${item.treatmentItem} ${status} 예약${item.hasMemo ? ", 메모 있음" : ""}`}
                       title={
                         draggable
                           ? "눌러서 상세 보기, 끌어서 시간 이동"
@@ -306,6 +306,11 @@ export function DayView({
                         <span className={cn("truncate font-semibold", isDimmedStatus(item.status) && "line-through")}>
                           {item.patientNameMasked}
                         </span>
+                        {item.hasMemo && (
+                          <span aria-hidden title="메모 있음" className="shrink-0 rounded bg-white/80 px-0.5 text-xs text-slate-900">
+                            메모
+                          </span>
+                        )}
                         {item.isNewPatient && (
                           <Badge tone="warning" className="px-1 py-0 text-xs">
                             신환

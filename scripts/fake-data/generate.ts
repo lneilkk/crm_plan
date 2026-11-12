@@ -153,6 +153,7 @@ const TREATMENT_ITEM_PROFILES = new Map<string, { weight: number; durations: Wei
   ["보철", { weight: 7, durations: [[30, 40], [60, 50], [90, 10]] }],
   ["발치", { weight: 6, durations: [[30, 50], [60, 50]] }],
   ["임플란트", { weight: 4, durations: [[60, 40], [90, 60]] }],
+  ["라미네이트", { weight: 2, durations: [[60, 60], [90, 40]] }],
   ["교정", { weight: 2, durations: [[30, 70], [60, 30]] }],
   ["미백", { weight: 2, durations: [[60, 70], [90, 30]] }],
 ]);

@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import type { BusinessHours, ClinicSettings } from "@/lib/domain/clinic";
+import { DEFAULT_TREATMENT_ITEM_META, PRICE_MAX, TREATMENT_CATEGORIES } from "@/lib/domain/treatment";
 import { isValidTime } from "@/lib/time/kst";
 import { ApiError } from "@/server/api/errors";
 import { db } from "@/server/db";
@@ -32,6 +33,10 @@ const settingsSchema = z.object({
     z.object({ code: z.string().min(1), name: z.string().min(1), kind: z.enum(["CHAIR", "CONSULT_ROOM"]) }),
   ),
   treatmentItems: z.array(z.string().min(1)),
+  treatmentItemMeta: z.record(
+    z.string(),
+    z.object({ category: z.enum(TREATMENT_CATEGORIES), price: z.number().int().min(0).max(PRICE_MAX) }),
+  ),
 }) satisfies z.ZodType<ClinicSettings>;
 
 type SettingsClient = Pick<Prisma.TransactionClient, "clinicSetting">;
@@ -45,6 +50,8 @@ export async function getClinicSettings(client: SettingsClient = db): Promise<Cl
     businessHours: row.businessHours,
     chairs: row.chairs,
     treatmentItems: row.treatmentItems,
+    // 마이그레이션 전 행(null)은 기본값을 쓴다.
+    treatmentItemMeta: row.treatmentItemMeta ?? DEFAULT_TREATMENT_ITEM_META,
   });
   if (!parsed.success) {
     log.error("settings.invalid", { issueCount: parsed.error.issues.length });

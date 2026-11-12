@@ -66,7 +66,7 @@ export function WeekView({
                     <button
                       type="button"
                       onClick={() => onOpen(item)}
-                      aria-label={`${day} ${time} ${item.patientNameMasked} ${item.treatmentItem} ${status} 예약`}
+                      aria-label={`${day} ${time} ${item.patientNameMasked} ${item.treatmentItem} ${status} 예약${item.hasMemo ? ", 메모 있음" : ""}`}
                       className={cn(
                         "w-full rounded-md border border-l-4 px-1.5 py-1 text-left text-sm leading-tight hover:shadow",
                         paint.className,
@@ -78,6 +78,11 @@ export function WeekView({
                         <span className={cn("truncate font-semibold", isDimmedStatus(item.status) && "line-through")}>
                           {item.patientNameMasked}
                         </span>
+                        {item.hasMemo && (
+                          <span aria-hidden title="메모 있음" className="shrink-0 rounded bg-white/80 px-0.5 text-xs text-slate-900">
+                            메모
+                          </span>
+                        )}
                         {item.isNewPatient && (
                           <Badge tone="warning" className="px-1 py-0 text-xs">
                             신환

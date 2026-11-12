@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isPremiumItem, treatmentMetaOf } from "@/lib/domain/treatment";
 import type { Appointment, Prisma } from "@/generated/prisma/client";
 import type { AppointmentChannel } from "@/lib/domain/appointment";
 import type { ClinicSettings } from "@/lib/domain/clinic";
@@ -69,6 +70,16 @@ export function assertDuration(durationMin: number): void {
   if (!isValidDuration(durationMin)) throw invalidField("durationMin", "invalid_duration");
 }
 
+/** 상담실(CONSULT_ROOM)에는 고가 항목 예약만 둔다 (F-5) */
+export const GENERAL_IN_CONSULT_ROOM_MESSAGE = "상담실에는 고가(상담 대상) 항목 예약만 넣을 수 있습니다. 일반 진료는 진료 체어를 고르세요.";
+
+export function assertConsultRoomItem(settings: ClinicSettings, chair: string, treatmentItem: string): void {
+  const room = settings.chairs.find((c) => c.code === chair);
+  if (room?.kind === "CONSULT_ROOM" && !isPremiumItem(settings.treatmentItemMeta, treatmentItem)) {
+    throw new ApiError(400, "GENERAL_ITEM_IN_CONSULT_ROOM", GENERAL_IN_CONSULT_ROOM_MESSAGE);
+  }
+}
+
 export function assertChair(settings: ClinicSettings, chair: string): void {
   if (!settings.chairs.some((c) => c.code === chair)) throw invalidField("chair", "unknown_chair");
 }
@@ -88,11 +99,11 @@ export function chairConflictError(): ApiError {
   return new ApiError(409, "CHAIR_CONFLICT", "같은 체어에 겹치는 예약이 있습니다");
 }
 
-const DOCTOR_ROLES: readonly StaffRole[] = ["DOCTOR", "ADMIN"];
-const COUNSELOR_ROLES: readonly StaffRole[] = ["COUNSELOR", "ADMIN"];
+export const DOCTOR_ROLES: readonly StaffRole[] = ["DOCTOR", "ADMIN"];
+export const COUNSELOR_ROLES: readonly StaffRole[] = ["COUNSELOR", "ADMIN"];
 
-async function assertStaffRole(
-  tx: Prisma.TransactionClient,
+export async function assertStaffRole(
+  tx: Pick<Prisma.TransactionClient, "staff">,
   id: string | null | undefined,
   roles: readonly StaffRole[],
   path: string,
@@ -110,6 +121,7 @@ async function insert(
   const settings = await getClinicSettings(tx);
   assertChair(settings, input.chair);
   if (!settings.treatmentItems.includes(input.treatmentItem)) throw invalidField("treatmentItem", "unknown_item");
+  assertConsultRoomItem(settings, input.chair, input.treatmentItem);
   assertDuration(input.durationMin);
   await assertStaffRole(tx, input.doctorId, DOCTOR_ROLES, "doctorId");
   await assertStaffRole(tx, input.counselorId, COUNSELOR_ROLES, "counselorId");
@@ -128,6 +140,7 @@ async function insert(
       treatmentItem: input.treatmentItem,
       channel: input.channel,
       memo: input.memo ?? null,
+      listPrice: treatmentMetaOf(settings.treatmentItemMeta, input.treatmentItem).price,
       status: "BOOKED",
       originalAppointmentId: options.originalAppointmentId ?? null,
       createdById: options.actorId,

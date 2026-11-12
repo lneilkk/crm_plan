@@ -84,6 +84,9 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "arrived_at",
     "original_appointment_id",
     "memo",
+    // F-6(피드백): 등록·항목 변경 시점 단가와 할인율
+    "list_price",
+    "discount_rate",
     "created_by_id",
     "created_at",
     "updated_at",
@@ -119,6 +122,8 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "treatment_items",
     // F-2(피드백): 예약 상태별 캘린더 표시 이름·색. 기획서 6장에는 없다(CHECKLIST F-2 메모).
     "status_styles",
+    // F-5·F-6(피드백): 예약 항목별 구분(고가·일반)·단가
+    "treatment_item_meta",
     "updated_by_id",
     "updated_at",
   ],

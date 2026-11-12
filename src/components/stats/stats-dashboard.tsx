@@ -27,6 +27,7 @@ import {
   Tr,
 } from "@/components/ui";
 import { bucketLabel, type Period, periodError, PERIOD_PRESETS, type PeriodPreset, presetPeriod, STATS_UNITS } from "./period";
+import { PerformanceView } from "./performance-view";
 import { RateChart } from "./rate-chart";
 
 /**
@@ -42,7 +43,29 @@ export function StatsDashboard() {
     return <LoadError message={me.error instanceof ApiRequestError ? me.error.message : undefined} onRetry={() => me.refetch()} />;
   }
   if (!can(me.data.role, "stats.read")) return <NoPermission />;
-  return <Dashboard />;
+  return <StatsTabs />;
+}
+
+/** 내원 통계 | 실적 (F-6) */
+function StatsTabs() {
+  const [tab, setTab] = useState<"visits" | "performance">("visits");
+  return (
+    <div className="flex flex-col gap-3">
+      <div role="group" aria-label="통계 종류" className="mx-auto flex w-full max-w-6xl gap-1">
+        {(
+          [
+            ["visits", "내원 통계"],
+            ["performance", "실적"],
+          ] as const
+        ).map(([key, label]) => (
+          <Button key={key} variant={tab === key ? "primary" : "secondary"} aria-pressed={tab === key} onClick={() => setTab(key)}>
+            {label}
+          </Button>
+        ))}
+      </div>
+      {tab === "visits" ? <Dashboard /> : <PerformanceView />}
+    </div>
+  );
 }
 
 function LoadError({ message, onRetry }: { message?: string; onRetry: () => void }) {

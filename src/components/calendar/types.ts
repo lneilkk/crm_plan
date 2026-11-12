@@ -26,6 +26,8 @@ export type CalendarAppointment = {
   isNewPatient: boolean;
   /** 붙은 색 라벨 (F-2) */
   labelIds: string[];
+  /** 메모가 있는지 (F-8) */
+  hasMemo: boolean;
 };
 
 export type AppointmentDetail = {
@@ -46,6 +48,10 @@ export type AppointmentDetail = {
   arrivedAt: string | null;
   originalAppointmentId: string | null;
   memo: string | null;
+  counselorId: string | null;
+  /** 단가(원)·할인율(%) — F-6 */
+  listPrice: number;
+  discountRate: number;
   labelIds: string[];
   createdAt: string;
   history: {

@@ -40,6 +40,7 @@ import {
   useViewportHeight,
 } from "./calendar-style";
 import { CalendarStyleEditor } from "./calendar-style-editor";
+import { TreatmentItemsEditor } from "./treatment-items-editor";
 import { DayView, type MoveTarget } from "./day-view";
 import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } from "./types";
 import { WeekView } from "./week-view";
@@ -204,7 +205,10 @@ function Calendar({
 
       {tab === "edit" ? (
         styleReady ? (
-          <CalendarStyleEditor style={style} onSaved={(message) => notify(message, "success")} />
+          <div className="flex flex-col gap-4">
+            <TreatmentItemsEditor settings={settings} onSaved={(message) => notify(message, "success")} />
+            <CalendarStyleEditor style={style} onSaved={(message) => notify(message, "success")} />
+          </div>
         ) : (
           <Spinner showLabel />
         )
@@ -324,13 +328,15 @@ function Calendar({
           key={opened.id}
           appointment={opened}
           chairs={settings.chairs}
+          settings={settings}
+          doctors={doctors}
           canWrite={canWrite}
           style={style}
           today={today}
           onClose={() => setOpened(null)}
           onMoved={refresh}
-          onLabelsSaved={() => {
-            notify("라벨을 저장했습니다.", "success");
+          onLabelsSaved={(message) => {
+            notify(message, "success");
             void refresh();
           }}
         />

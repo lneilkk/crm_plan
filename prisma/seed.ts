@@ -73,6 +73,7 @@ export async function seed(db: PrismaClient, env: SeedEnv): Promise<SeedResult> 
         businessHours: DEFAULT_CLINIC_SETTINGS.businessHours,
         chairs: DEFAULT_CLINIC_SETTINGS.chairs,
         treatmentItems: DEFAULT_CLINIC_SETTINGS.treatmentItems,
+        treatmentItemMeta: DEFAULT_CLINIC_SETTINGS.treatmentItemMeta,
       },
     ],
     skipDuplicates: true,

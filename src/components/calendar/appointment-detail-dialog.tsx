@@ -11,7 +11,7 @@ import {
   isPendingStatus,
   VISIT_REASON_LABEL,
 } from "@/lib/domain/appointment";
-import type { Chair } from "@/lib/domain/clinic";
+import type { Chair, ClinicSettings } from "@/lib/domain/clinic";
 import {
   formatKstDateLabel,
   formatKstShortDate,
@@ -22,8 +22,9 @@ import {
   kstMinutesOfDay,
 } from "@/lib/time/kst";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
+import { AppointmentEditSection } from "./appointment-edit-section";
 import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
-import { type AppointmentDetail, type CalendarAppointment, STATUS_TONE } from "./types";
+import { type AppointmentDetail, type CalendarAppointment, type DoctorOption, STATUS_TONE } from "./types";
 
 function dateTimeLabel(iso: string): string {
   const instant = new Date(iso);
@@ -38,6 +39,8 @@ function dateTimeLabel(iso: string): string {
 export function AppointmentDetailDialog({
   appointment,
   chairs,
+  settings,
+  doctors,
   canWrite,
   style,
   today,
@@ -47,6 +50,9 @@ export function AppointmentDetailDialog({
 }: {
   appointment: CalendarAppointment;
   chairs: Chair[];
+  /** 예약 항목·구분·단가 (F-5·F-6) */
+  settings: ClinicSettings;
+  doctors: DoctorOption[];
   canWrite: boolean;
   /** 색 라벨 (F-2) */
   style: CalendarStyle;
@@ -54,7 +60,8 @@ export function AppointmentDetailDialog({
   today: string;
   onClose: () => void;
   onMoved: () => Promise<unknown>;
-  onLabelsSaved: () => void;
+  /** 라벨·예약을 저장했을 때 (알림 문구) */
+  onLabelsSaved: (message: string) => void;
 }) {
   const detail = useQuery({
     queryKey: ["appointment", appointment.id],
@@ -89,12 +96,18 @@ export function AppointmentDetailDialog({
           chairs={chairs}
           canWrite={canWrite}
           style={style}
+          settings={settings}
+          doctors={doctors}
           today={today}
+          onEdited={() => {
+            onLabelsSaved("예약을 저장했습니다.");
+            void detail.refetch();
+          }}
           onMoved={async () => {
             await Promise.all([onMoved(), detail.refetch()]);
           }}
           onLabelsSaved={() => {
-            onLabelsSaved();
+            onLabelsSaved("라벨을 저장했습니다.");
             void detail.refetch();
           }}
         />
@@ -109,7 +122,10 @@ function DetailBody({
   chairs,
   canWrite,
   style,
+  settings,
+  doctors,
   today,
+  onEdited,
   onMoved,
   onLabelsSaved,
 }: {
@@ -118,7 +134,10 @@ function DetailBody({
   chairs: Chair[];
   canWrite: boolean;
   style: CalendarStyle;
+  settings: ClinicSettings;
+  doctors: DoctorOption[];
   today: string;
+  onEdited: () => void;
   onMoved: () => Promise<void>;
   onLabelsSaved: () => void;
 }) {
@@ -152,6 +171,16 @@ function DetailBody({
         </Row>
         <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
       </dl>
+
+      <AppointmentEditSection
+        key={`${data.treatmentItem}|${data.chair}|${data.doctorId}|${data.counselorId}|${data.discountRate}|${data.memo}`}
+        data={data}
+        settings={settings}
+        doctors={doctors}
+        canWrite={canWrite}
+        today={today}
+        onSaved={onEdited}
+      />
 
       <LabelSection key={data.labelIds.join(",")} appointmentId={data.id} saved={data.labelIds} style={style} canWrite={canWrite} onSaved={onLabelsSaved} />
 

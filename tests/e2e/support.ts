@@ -83,11 +83,12 @@ export function minutesToTime(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
+/** 진료 체어 코드. 상담실은 고가 항목만 받으므로(F-5) 일반 항목(정기검진)으로 예약하는 시나리오는 빼고 쓴다. */
 export async function chairCodes(api: APIRequestContext): Promise<string[]> {
   const response = await api.get("/api/settings");
   expect(response.ok()).toBeTruthy();
-  const settings = (await response.json()) as { chairs: { code: string }[] };
-  return settings.chairs.map((chair) => chair.code);
+  const settings = (await response.json()) as { chairs: { code: string; kind: string }[] };
+  return settings.chairs.filter((chair) => chair.kind === "CHAIR").map((chair) => chair.code);
 }
 
 export async function todayAppointments(api: APIRequestContext): Promise<DayAppointment[]> {
