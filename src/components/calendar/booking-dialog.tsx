@@ -22,7 +22,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export type BookingPrefill = { date: DateKey; time: string; chair?: string; doctorId?: string | null };
 
-type SelectedPatient = { id: string; label: string };
+export type SelectedPatient = { id: string; label: string };
 
 /** 소요시간: 5~480분, 5분 단위 (서버 규칙과 같다) */
 function isValidDuration(value: number): boolean {
@@ -281,7 +281,7 @@ export function BookingDialog({
 }
 
 /** 고객 고르기: 검색 또는 이름·휴대폰으로 바로 등록 */
-function PatientPicker({ selected, onSelect }: { selected: SelectedPatient | null; onSelect: (p: SelectedPatient | null) => void }) {
+export function PatientPicker({ selected, onSelect }: { selected: SelectedPatient | null; onSelect: (p: SelectedPatient | null) => void }) {
   const [mode, setMode] = useState<"search" | "new">("search");
 
   if (selected) {

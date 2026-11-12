@@ -23,6 +23,8 @@ export function StaffEditor({ onSaved }: { onSaved: (message: string) => void })
   const refresh = async (message: string) => {
     setError(null);
     await queryClient.invalidateQueries({ queryKey: ["staff"] });
+    // 첫 목록 읽기가 아직 끝나지 않았으면 무효화가 그 응답(저장 전 목록)을 남길 수 있어, 목록을 한 번 더 확실히 읽는다.
+    await accounts.refetch();
     onSaved(message);
   };
   const fail = (e: unknown) => setError(e instanceof ApiRequestError ? e.message : "처리하지 못했습니다.");

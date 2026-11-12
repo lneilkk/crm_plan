@@ -21,6 +21,10 @@ export const PERMISSIONS = {
   "staff.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
   /** 계정 잠금 해제 등 직원 계정 관리 */
   "staff.manage": ["ADMIN"],
+  /** 상담 기록 보기(내용 포함) — 상담·원장·관리자. 프론트·간호는 상담 내용을 볼 수 없다 (T6-1) */
+  "consult.read": ["COUNSELOR", "DOCTOR", "ADMIN"],
+  /** 상담 등록·수정·수술예약 전환 (F-10) */
+  "consult.write": ["COUNSELOR", "ADMIN"],
   /** 기존 CRM 데이터 가져오기 (F-7) — 관리자만 */
   "data.import": ["ADMIN"],
 } as const satisfies Record<string, readonly StaffRole[]>;
@@ -43,6 +47,7 @@ export function can(role: StaffRole, permission: Permission): boolean {
 export const NAV_SECTIONS = [
   { key: "board", label: "내원 보드", href: "/board", permission: "appointment.read" },
   { key: "calendar", label: "예약 캘린더", href: "/calendar", permission: "appointment.read" },
+  { key: "consult", label: "상담", href: "/consult", permission: "consult.read" },
   { key: "patients", label: "고객", href: "/patients", permission: "patient.read" },
   { key: "stats", label: "통계", href: "/stats", permission: "stats.read" },
   { key: "import", label: "가져오기", href: "/import", permission: "data.import" },

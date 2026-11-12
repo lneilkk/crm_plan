@@ -108,6 +108,9 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "content",
     "interested_items",
     "result",
+    // F-10(피드백): 상담 결과 분류 이름, 상담 시점 신환 여부
+    "outcome",
+    "is_new_patient",
     "appointment_id",
     "consulted_at",
     "created_at",
@@ -124,6 +127,8 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "status_styles",
     // F-5·F-6(피드백): 예약 항목별 구분(고가·일반)·단가
     "treatment_item_meta",
+    // F-10(피드백): 상담 결과 분류 목록
+    "consult_outcomes",
     "updated_by_id",
     "updated_at",
   ],

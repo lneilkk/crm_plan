@@ -8,6 +8,7 @@ import { CalendarStyleEditor } from "@/components/calendar/calendar-style-editor
 import { TreatmentItemsEditor } from "@/components/calendar/treatment-items-editor";
 import { ChairsEditor } from "./chairs-editor";
 import { ClinicRulesEditor } from "./clinic-rules-editor";
+import { ConsultOutcomesEditor } from "./consult-outcomes-editor";
 import { StaffEditor } from "./staff-editor";
 
 const SECTIONS = [
@@ -15,6 +16,7 @@ const SECTIONS = [
   { key: "labels", label: "색 라벨" },
   { key: "statuses", label: "상태 표시" },
   { key: "chairs", label: "체어·열" },
+  { key: "consult", label: "상담 결과" },
   { key: "rules", label: "진료시간·기준" },
   { key: "staff", label: "직원" },
 ] as const;
@@ -58,6 +60,7 @@ export function SettingsEditor({
           (styleReady ? <CalendarStyleEditor style={style} onSaved={onSaved} section={section} /> : <Spinner showLabel />)}
         {section === "chairs" && <ChairsEditor key={JSON.stringify(settings.chairs)} settings={settings} onSaved={onSaved} />}
         {section === "rules" && <ClinicRulesEditor settings={settings} onSaved={onSaved} />}
+        {section === "consult" && <ConsultOutcomesEditor onSaved={onSaved} />}
         {section === "staff" && <StaffEditor onSaved={onSaved} />}
       </div>
     </div>

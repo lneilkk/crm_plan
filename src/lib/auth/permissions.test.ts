@@ -15,6 +15,8 @@ const EXPECTED: Record<Permission, [boolean, boolean, boolean, boolean, boolean]
   "settings.write": /*          */ [false, false, false, false, true],
   "staff.read": /*              */ [true, true, true, true, true],
   "staff.manage": /*            */ [false, false, false, false, true],
+  "consult.read": /*            */ [false, true, true, false, true],
+  "consult.write": /*           */ [false, true, false, false, true],
   "data.import": /*             */ [false, false, false, false, true],
 };
 
@@ -43,11 +45,11 @@ describe("권한 표", () => {
 });
 
 describe("메뉴 구역", () => {
-  it("통계는 의사·관리자만, 가져오기는 관리자만, 나머지 구역은 모든 역할이 본다", () => {
+  it("통계는 의사·관리자만, 상담은 상담·의사·관리자, 가져오기는 관리자만, 나머지는 모든 역할", () => {
     expect(navSectionsFor("FRONT")).toEqual(["board", "calendar", "patients"]);
-    expect(navSectionsFor("COUNSELOR")).toEqual(["board", "calendar", "patients"]);
-    expect(navSectionsFor("DOCTOR")).toEqual(["board", "calendar", "patients", "stats"]);
+    expect(navSectionsFor("COUNSELOR")).toEqual(["board", "calendar", "consult", "patients"]);
+    expect(navSectionsFor("DOCTOR")).toEqual(["board", "calendar", "consult", "patients", "stats"]);
     expect(navSectionsFor("NURSE")).toEqual(["board", "calendar", "patients"]);
-    expect(navSectionsFor("ADMIN")).toEqual(["board", "calendar", "patients", "stats", "import"]);
+    expect(navSectionsFor("ADMIN")).toEqual(["board", "calendar", "consult", "patients", "stats", "import"]);
   });
 });
