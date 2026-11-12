@@ -21,6 +21,8 @@ export const PERMISSIONS = {
   "staff.read": ["FRONT", "COUNSELOR", "DOCTOR", "ADMIN"],
   /** 계정 잠금 해제 등 직원 계정 관리 */
   "staff.manage": ["ADMIN"],
+  /** 기존 CRM 데이터 가져오기 (F-7) — 관리자만 */
+  "data.import": ["ADMIN"],
 } as const satisfies Record<string, readonly StaffRole[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -43,6 +45,7 @@ export const NAV_SECTIONS = [
   { key: "calendar", label: "예약 캘린더", href: "/calendar", permission: "appointment.read" },
   { key: "patients", label: "고객", href: "/patients", permission: "patient.read" },
   { key: "stats", label: "통계", href: "/stats", permission: "stats.read" },
+  { key: "import", label: "가져오기", href: "/import", permission: "data.import" },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; href: string; permission: Permission }>;
 
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];

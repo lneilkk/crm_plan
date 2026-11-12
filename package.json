@@ -38,6 +38,7 @@
     "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "read-excel-file": "9.3.13",
     "server-only": "0.0.1",
     "zod": "4.6.7"
   },
@@ -54,7 +55,8 @@
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "typescript": "^5",
-    "vitest": "5.1.0"
+    "vitest": "5.1.0",
+    "write-excel-file": "4.1.1"
   },
   "engines": {
     "node": ">=22"

@@ -78,6 +78,8 @@ export type RouteDefinition<P extends RoutePermission, Q, B, Pa> = {
   query?: Q;
   body?: B;
   params?: Pa;
+  /** 요청 본문 상한(바이트). 기본 MAX_BODY_BYTES. 대량 입력(가져오기)만 늘린다 — 권한 검사를 통과한 뒤에만 읽는다. */
+  maxBodyBytes?: number;
   handler: (ctx: RouteContext<P, Q, B, Pa>) => unknown;
 };
 
@@ -217,7 +219,7 @@ export function routeMetaOf(value: unknown): RouteMeta | null {
 async function parseInput(
   request: Request,
   context: { params: Promise<unknown> } | undefined,
-  definition: { query?: Schema; body?: Schema; params?: Schema },
+  definition: { query?: Schema; body?: Schema; params?: Schema; maxBodyBytes?: number },
 ) {
   const rawParams = ((context ? await context.params : undefined) ?? {}) as Record<string, unknown>;
   const params = definition.params ? validate(definition.params, rawParams) : rawParams;
@@ -234,7 +236,7 @@ async function parseInput(
 
   let body: unknown = undefined;
   if (definition.body) {
-    const text = await readBodyText(request, MAX_BODY_BYTES);
+    const text = await readBodyText(request, definition.maxBodyBytes ?? MAX_BODY_BYTES);
     let raw: unknown;
     try {
       raw = JSON.parse(text);

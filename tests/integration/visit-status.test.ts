@@ -812,7 +812,13 @@ describe("POST /api/appointments/[id]/reschedule", () => {
 describe("appointment.status를 쓰는 코드", () => {
   const SRC = fileURLToPath(new URL("../../src", import.meta.url));
   /** 상태를 쓸 수 있는 파일: 상태 변경, 예약 생성(첫 BOOKED), 예약변경 */
-  const ALLOWED = ["server/appointments/status.ts", "server/appointments/create.ts", "server/appointments/reschedule.ts"];
+  // import/appointments.ts: 기존 CRM 이력 가져오기(F-7) — 상태와 상태 이력을 한 트랜잭션에 함께 쓴다(import.test.ts가 확인).
+  const ALLOWED = [
+    "server/appointments/status.ts",
+    "server/appointments/create.ts",
+    "server/appointments/reschedule.ts",
+    "server/import/appointments.ts",
+  ];
   const WRITE_CALL = /\.appointment\.(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert)\s*\(/g;
   const RAW_WRITE = /(UPDATE|INSERT\s+INTO)\s+"?appointment"?\s/gi;
 
