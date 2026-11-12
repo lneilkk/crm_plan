@@ -22,6 +22,7 @@ import {
   kstMinutesOfDay,
 } from "@/lib/time/kst";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
+import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
 import { type AppointmentDetail, type CalendarAppointment, STATUS_TONE } from "./types";
 
 function dateTimeLabel(iso: string): string {
@@ -38,17 +39,22 @@ export function AppointmentDetailDialog({
   appointment,
   chairs,
   canWrite,
+  style,
   today,
   onClose,
   onMoved,
+  onLabelsSaved,
 }: {
   appointment: CalendarAppointment;
   chairs: Chair[];
   canWrite: boolean;
+  /** 색 라벨 (F-2) */
+  style: CalendarStyle;
   /** 오늘(한국 시간) */
   today: string;
   onClose: () => void;
   onMoved: () => Promise<unknown>;
+  onLabelsSaved: () => void;
 }) {
   const detail = useQuery({
     queryKey: ["appointment", appointment.id],
@@ -82,9 +88,14 @@ export function AppointmentDetailDialog({
           chairName={chairName}
           chairs={chairs}
           canWrite={canWrite}
+          style={style}
           today={today}
           onMoved={async () => {
             await Promise.all([onMoved(), detail.refetch()]);
+          }}
+          onLabelsSaved={() => {
+            onLabelsSaved();
+            void detail.refetch();
           }}
         />
       )}
@@ -97,15 +108,19 @@ function DetailBody({
   chairName,
   chairs,
   canWrite,
+  style,
   today,
   onMoved,
+  onLabelsSaved,
 }: {
   data: AppointmentDetail;
   chairName: (code: string) => string;
   chairs: Chair[];
   canWrite: boolean;
+  style: CalendarStyle;
   today: string;
   onMoved: () => Promise<void>;
+  onLabelsSaved: () => void;
 }) {
   const start = new Date(data.startAt);
   return (
@@ -137,6 +152,8 @@ function DetailBody({
         </Row>
         <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
       </dl>
+
+      <LabelSection key={data.labelIds.join(",")} appointmentId={data.id} saved={data.labelIds} style={style} canWrite={canWrite} onSaved={onLabelsSaved} />
 
       {canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (
         <MoveForm data={data} chairs={chairs} onMoved={onMoved} />
@@ -270,5 +287,62 @@ function MoveForm({ data, chairs, onMoved }: { data: AppointmentDetail; chairs: 
       {localError && <FieldError>{localError}</FieldError>}
       {serverError && <FieldError>{serverError}</FieldError>}
     </form>
+  );
+}
+
+/** 색 라벨 (F-2) — 예약을 쓸 수 있는 직원은 고르고 저장, 의사는 보기만 */
+function LabelSection({
+  appointmentId,
+  saved,
+  style,
+  canWrite,
+  onSaved,
+}: {
+  appointmentId: string;
+  saved: string[];
+  style: CalendarStyle;
+  canWrite: boolean;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState<string[]>(saved);
+  const changed = value.length !== saved.length || value.some((id) => !saved.includes(id));
+  const save = useMutation({
+    mutationFn: () => apiFetch(`/api/appointments/${appointmentId}/labels`, { method: "PUT", body: { labelIds: value } }),
+    onSuccess: onSaved,
+  });
+
+  if (!canWrite) {
+    const names = style.labels.filter((label) => saved.includes(label.id));
+    return (
+      <div>
+        <p className="mb-1 text-base font-semibold text-slate-800">색 라벨</p>
+        {names.length === 0 ? (
+          <p className="text-base text-slate-500">없음</p>
+        ) : (
+          <div className="flex flex-wrap gap-3 text-base">
+            {names.map((label) => (
+              <ColorChip key={label.id} color={label.color} name={label.name} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p id="detail-labels-title" className="text-base font-semibold text-slate-800">
+        색 라벨 <span className="text-sm font-normal text-slate-500">(칸 색은 편집 탭 순서상 가장 위 라벨)</span>
+      </p>
+      <LabelPicker style={style} value={value} onChange={setValue} idPrefix="detail" disabled={save.isPending} />
+      <div className="flex items-center gap-3">
+        <Button variant="secondary" disabled={!changed || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "저장 중…" : "라벨 저장"}
+        </Button>
+        {save.isError && (
+          <FieldError>{save.error instanceof ApiRequestError ? save.error.message : "저장하지 못했습니다."}</FieldError>
+        )}
+      </div>
+    </div>
   );
 }

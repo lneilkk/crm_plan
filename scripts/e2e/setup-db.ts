@@ -7,6 +7,9 @@
  * 4. E2E DB만: 일요일도 평일과 같은 시간에 진료하게 바꾼다 → 요일에 따라 건너뛰는 시나리오가 없다.
  *    (가짜 데이터는 기본 설정 기준이라 일요일에는 가짜 예약이 없다. 시나리오는 자기 예약을 만들어 쓴다.)
  * 5. 가짜 데이터: seed는 고정, 기준 시각은 지금 → '오늘'에 예약이 있다.
+ * 6. E2E DB만: 시나리오 전용 체어(E1~E3)를 가짜 데이터 뒤에 더한다. 가짜 예약이 실행 시각 근처의 체어를
+ *    모두 채우면 '이미 시작한 예약'을 만들 자리가 없어 시나리오가 실패하므로(실행 시각에 따라 달라짐),
+ *    가짜 예약이 없는 체어를 둔다.
  *
  * crm_e2e는 실행이 끝나도 남겨 둔다(검토용). 다음 실행이 다시 만든다.
  * 출력에는 접속 주소·비밀번호·환자 정보를 넣지 않는다(각 단계의 출력도 건수·DB 이름뿐이다).
@@ -51,6 +54,22 @@ async function openSundays(url: string): Promise<void> {
   }
 }
 
+/** 시나리오 전용 체어 3개를 체어 목록 끝에 더한다. crm_e2e에서만 부른다. */
+async function addScenarioChairs(url: string): Promise<void> {
+  assertE2eDatabaseUrl(url);
+  const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 5000 });
+  await client.connect();
+  try {
+    const extra = [1, 2, 3].map((n) => ({ code: `E${n}`, name: `시험${n}`, kind: "CHAIR" }));
+    const { rowCount } = await client.query(`UPDATE clinic_setting SET chairs = chairs || $1::jsonb WHERE id = 1`, [
+      JSON.stringify(extra),
+    ]);
+    if (rowCount !== 1) throw new Error("병원 설정(clinic_setting)을 바꾸지 못했습니다.");
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
 function run(step: string, command: string, args: string[], env: NodeJS.ProcessEnv): void {
   console.log(`[e2e] ${step}`);
   execFileSync(command, args, { cwd: ROOT, env, stdio: "inherit" });
@@ -76,6 +95,8 @@ async function main() {
     "--now",
     new Date().toISOString(),
   ], env);
+  console.log("[e2e] 시나리오 전용 체어 추가(E2E DB만)");
+  await addScenarioChairs(url);
   console.log(`[e2e] ${E2E_DATABASE} 준비 완료`);
 }
 

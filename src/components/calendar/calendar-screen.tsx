@@ -24,9 +24,22 @@ import {
   kstDayStart,
   kstWeekStart,
 } from "@/lib/time/kst";
-import { Button, cn, EmptyState, Input, Spinner, Toast, type ToastTone } from "@/components/ui";
+import { Button, cn, EmptyState, Input, Label, Select, Spinner, Toast, type ToastTone } from "@/components/ui";
 import { AppointmentDetailDialog } from "./appointment-detail-dialog";
 import { BookingDialog, type BookingPrefill } from "./booking-dialog";
+import {
+  CalendarLegend,
+  type CalendarSize,
+  type CalendarStyle,
+  COLUMN_WIDTH_OPTIONS,
+  FALLBACK_STYLE,
+  pxPerMinFor,
+  ROW_HEIGHT_OPTIONS,
+  useCalendarSize,
+  useCalendarStyle,
+  useViewportHeight,
+} from "./calendar-style";
+import { CalendarStyleEditor } from "./calendar-style-editor";
 import { DayView, type MoveTarget } from "./day-view";
 import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } from "./types";
 import { WeekView } from "./week-view";
@@ -52,6 +65,8 @@ export function CalendarScreen() {
     queryFn: () => apiFetch<{ staff: DoctorOption[] }>("/api/staff?role=DOCTOR"),
     staleTime: 60_000,
   });
+  // 색 설정을 못 읽어도 캘린더는 기본 색으로 보여 준다.
+  const calendarStyle = useCalendarStyle();
 
   if (me.isPending || settings.isPending || doctors.isPending) return <Spinner showLabel />;
   const failed = [me, settings, doctors].find((q) => q.isError)?.error;
@@ -74,11 +89,35 @@ export function CalendarScreen() {
     );
   }
   return (
-    <Calendar settings={settings.data} doctors={doctors.data.staff} canWrite={can(me.data.role, "appointment.write")} />
+    <Calendar
+      settings={settings.data}
+      doctors={doctors.data.staff}
+      canWrite={can(me.data.role, "appointment.write")}
+      canEditStyle={can(me.data.role, "settings.write")}
+      style={calendarStyle.data ?? FALLBACK_STYLE}
+      styleReady={calendarStyle.isSuccess}
+    />
   );
 }
 
-function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; doctors: DoctorOption[]; canWrite: boolean }) {
+function Calendar({
+  settings,
+  doctors,
+  canWrite,
+  canEditStyle,
+  style,
+  styleReady,
+}: {
+  settings: ClinicSettings;
+  doctors: DoctorOption[];
+  canWrite: boolean;
+  /** [편집] 탭 — 관리자만 (F-2) */
+  canEditStyle: boolean;
+  style: CalendarStyle;
+  styleReady: boolean;
+}) {
+  const [tab, setTab] = useState<"calendar" | "edit">("calendar");
+  const [size, setSize] = useCalendarSize();
   const queryClient = useQueryClient();
   const [today, setToday] = useState(() => kstDateKey(new Date()));
   const [date, setDate] = useState<DateKey>(today);
@@ -150,6 +189,28 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-2xl font-bold text-slate-900">예약 캘린더</h1>
+        {canEditStyle && (
+          <Toggle
+            label="화면"
+            value={tab}
+            options={[
+              { value: "calendar", label: "캘린더" },
+              { value: "edit", label: "편집" },
+            ]}
+            onChange={setTab}
+          />
+        )}
+      </div>
+
+      {tab === "edit" ? (
+        styleReady ? (
+          <CalendarStyleEditor style={style} onSaved={(message) => notify(message, "success")} />
+        ) : (
+          <Spinner showLabel />
+        )
+      ) : (
+      <>
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={goToday}>
           오늘
         </Button>
@@ -196,6 +257,9 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
         </div>
       </div>
 
+      <SizeControls size={size} onChange={setSize} showWidth={view === "day"} />
+      <CalendarLegend style={style} />
+
       {appointments.isError && !appointments.data ? (
         <EmptyState
           title={appointments.error.message}
@@ -210,6 +274,7 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
           businessHours={settings.businessHours}
           chairName={chairName}
           appointments={items}
+          style={style}
           onOpenDay={(day) => {
             setDate(day);
             setView("day");
@@ -226,11 +291,16 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
           items={items}
           canWrite={canWrite}
           pendingMove={pendingMove}
+          style={style}
+          size={size}
           onGoTo={setDate}
           onCellClick={openBooking}
           onOpen={setOpened}
           onMove={(appointment, target) => move.mutate({ appointment, target })}
         />
+      )}
+
+      </>
       )}
 
       {booking && (
@@ -239,6 +309,7 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
           prefill={booking}
           settings={settings}
           doctors={doctors}
+          style={style}
           onClose={() => setBooking(null)}
           onCreated={() => {
             setBooking(null);
@@ -254,9 +325,14 @@ function Calendar({ settings, doctors, canWrite }: { settings: ClinicSettings; d
           appointment={opened}
           chairs={settings.chairs}
           canWrite={canWrite}
+          style={style}
           today={today}
           onClose={() => setOpened(null)}
           onMoved={refresh}
+          onLabelsSaved={() => {
+            notify("라벨을 저장했습니다.", "success");
+            void refresh();
+          }}
         />
       )}
 
@@ -275,6 +351,8 @@ function DayPanel({
   items,
   canWrite,
   pendingMove,
+  style,
+  size,
   onGoTo,
   onCellClick,
   onOpen,
@@ -289,6 +367,8 @@ function DayPanel({
   items: CalendarAppointment[];
   canWrite: boolean;
   pendingMove: ({ id: string } & MoveTarget) | null;
+  style: CalendarStyle;
+  size: CalendarSize;
   onGoTo: (date: DateKey) => void;
   onCellClick: (column: CalendarColumn, start: number) => void;
   onOpen: (appointment: CalendarAppointment) => void;
@@ -305,6 +385,9 @@ function DayPanel({
     }),
   );
   const columns = buildColumns(mode, settings.chairs, doctors, dayItems);
+  const viewportHeight = useViewportHeight();
+  // 세로 '화면 맞춤': 위쪽 메뉴·도구줄·범례·열 제목을 뺀 높이에 진료시간 전체가 들어가게
+  const pxPerMin = range ? pxPerMinFor(size.height, range.end - range.start, viewportHeight - 330) : 2;
 
   let nextOpenDay: DateKey | null = null;
   if (!hours) {
@@ -335,6 +418,9 @@ function DayPanel({
           appointments={dayItems}
           canWrite={canWrite && hours !== null && date >= today}
           pendingMove={pendingMove}
+          style={style}
+          pxPerMin={pxPerMin}
+          columnWidth={size.width}
           onCellClick={onCellClick}
           onOpen={onOpen}
           onMove={onMove}
@@ -371,6 +457,66 @@ function Toggle<T extends string>({
           {option.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** 칸 크기 (F-3) — 가로규격·세로규격. 이 브라우저에 기억한다. */
+function SizeControls({
+  size,
+  onChange,
+  showWidth,
+}: {
+  size: CalendarSize;
+  onChange: (size: CalendarSize) => void;
+  showWidth: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      {showWidth && (
+        <div className="flex items-center gap-2">
+          <Label htmlFor="calendar-width" className="mb-0 whitespace-nowrap">
+            가로규격
+          </Label>
+          <Select
+            id="calendar-width"
+            className="w-auto"
+            value={String(size.width)}
+            onChange={(e) => {
+              const found = COLUMN_WIDTH_OPTIONS.find((o) => String(o.value) === e.target.value);
+              if (found) onChange({ ...size, width: found.value });
+            }}
+          >
+            {COLUMN_WIDTH_OPTIONS.map((o) => (
+              <option key={String(o.value)} value={String(o.value)}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+      {showWidth && (
+        <div className="flex items-center gap-2">
+          <Label htmlFor="calendar-height" className="mb-0 whitespace-nowrap">
+            세로규격
+          </Label>
+          <Select
+            id="calendar-height"
+            className="w-auto"
+            value={size.height}
+            onChange={(e) => {
+              const found = ROW_HEIGHT_OPTIONS.find((o) => o.value === e.target.value);
+              if (found) onChange({ ...size, height: found.value });
+            }}
+          >
+            {ROW_HEIGHT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
     </div>
   );
 }

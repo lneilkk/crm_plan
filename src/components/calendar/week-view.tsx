@@ -1,11 +1,11 @@
 "use client";
 
 import { businessHoursOf } from "@/lib/calendar/layout";
-import { APPOINTMENT_STATUS_LABEL } from "@/lib/domain/appointment";
 import type { BusinessHours } from "@/lib/domain/clinic";
 import { addDays, type DateKey, formatKstDateLabel, formatKstShortDate, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import { Badge, cn } from "@/components/ui";
-import { blockColor, type CalendarAppointment, isDimmedStatus, STATUS_TONE } from "./types";
+import { blockPaint, type CalendarStyle, labelNames, StatusTag } from "./calendar-style";
+import { type CalendarAppointment, isDimmedStatus } from "./types";
 
 /**
  * 주 보기 — 월요일부터 7일. 하루에 한 열(모든 체어를 함께), 시간순 목록.
@@ -17,6 +17,7 @@ export function WeekView({
   businessHours,
   chairName,
   appointments,
+  style,
   onOpenDay,
   onOpen,
 }: {
@@ -25,6 +26,8 @@ export function WeekView({
   businessHours: BusinessHours;
   chairName: (code: string) => string;
   appointments: CalendarAppointment[];
+  /** 색 라벨·상태 색 (F-2) */
+  style: CalendarStyle;
   onOpenDay: (date: DateKey) => void;
   onOpen: (appointment: CalendarAppointment) => void;
 }) {
@@ -55,7 +58,9 @@ export function WeekView({
             <ul className="flex flex-col gap-1 p-1">
               {items.map((item) => {
                 const time = formatKstTime(new Date(item.startAt));
-                const status = APPOINTMENT_STATUS_LABEL[item.status];
+                const status = style.statusStyles[item.status].name;
+                const paint = blockPaint(item, style);
+                const names = labelNames(item.labelIds, style);
                 return (
                   <li key={item.id}>
                     <button
@@ -64,8 +69,9 @@ export function WeekView({
                       aria-label={`${day} ${time} ${item.patientNameMasked} ${item.treatmentItem} ${status} 예약`}
                       className={cn(
                         "w-full rounded-md border border-l-4 px-1.5 py-1 text-left text-sm leading-tight hover:shadow",
-                        blockColor(item.status),
+                        paint.className,
                       )}
+                      style={paint.style}
                     >
                       <span className="flex items-center gap-1">
                         <span className="font-bold tabular-nums">{time}</span>
@@ -78,12 +84,13 @@ export function WeekView({
                           </Badge>
                         )}
                       </span>
-                      <span className="block truncate text-slate-700">
+                      <span className="block truncate">
                         {item.treatmentItem} · {chairName(item.chair)}
                       </span>
-                      <Badge tone={STATUS_TONE[item.status]} className="mt-0.5 px-1 py-0 text-xs">
-                        {status}
-                      </Badge>
+                      <span className="mt-0.5 flex min-w-0 items-center gap-1">
+                        <StatusTag status={item.status} style={style} />
+                        {names.length > 0 && <span className="truncate text-xs font-semibold">{names.join(" · ")}</span>}
+                      </span>
                     </button>
                   </li>
                 );

@@ -42,6 +42,7 @@ export async function listAppointments(filter: AppointmentFilter) {
     include: {
       patient: { select: { name: true, phoneEnc: true, visitType: true, referralSource: true } },
       doctor: { select: { name: true } },
+      labels: { select: { labelId: true } },
     },
     orderBy: [{ startAt: "asc" }, { chair: "asc" }, { id: "asc" }],
   });
@@ -64,6 +65,7 @@ export async function listAppointments(filter: AppointmentFilter) {
     originalAppointmentId: row.originalAppointmentId,
     isNewPatient: row.patient.visitType === "NEW",
     referralSource: row.patient.referralSource,
+    labelIds: row.labels.map((link) => link.labelId),
   }));
 }
 
@@ -75,6 +77,7 @@ export async function getAppointmentDetail(id: string) {
       patient: { select: { name: true, visitType: true } },
       doctor: { select: { name: true } },
       counselor: { select: { name: true } },
+      labels: { select: { labelId: true } },
       statusLogs: {
         include: { staff: { select: { name: true } } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -101,6 +104,7 @@ export async function getAppointmentDetail(id: string) {
     arrivedAt: row.arrivedAt,
     originalAppointmentId: row.originalAppointmentId,
     memo: row.memo,
+    labelIds: row.labels.map((link) => link.labelId),
     createdAt: row.createdAt,
     history: row.statusLogs.map((entry) => ({
       fromStatus: entry.fromStatus,

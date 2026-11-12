@@ -14,13 +14,12 @@ import {
   ROW_MINUTES,
   rowStarts,
 } from "@/lib/calendar/layout";
-import { APPOINTMENT_STATUS_LABEL, isPendingStatus } from "@/lib/domain/appointment";
+import { isPendingStatus } from "@/lib/domain/appointment";
 import type { DateKey } from "@/lib/time/kst";
 import { Badge, cn } from "@/components/ui";
-import { blockColor, type CalendarAppointment, isDimmedStatus, STATUS_TONE } from "./types";
+import { blockPaint, type CalendarStyle, type ColumnWidth, columnTrack, labelNames, StatusTag } from "./calendar-style";
+import { type CalendarAppointment, isDimmedStatus } from "./types";
 
-/** 분당 픽셀 — 30분 한 줄이 60px */
-export const PX_PER_MIN = 2;
 /** 끌어 옮길 때 세로 맞춤 단위(분). 5분 단위는 상세의 '시간 이동' 입력으로 한다. */
 export const DRAG_SNAP_MIN = 10;
 /** 손이 살짝 떨린 것은 클릭으로 본다 */
@@ -58,6 +57,9 @@ export function DayView({
   appointments,
   canWrite,
   pendingMove,
+  style,
+  pxPerMin,
+  columnWidth,
   onCellClick,
   onOpen,
   onMove,
@@ -70,15 +72,22 @@ export function DayView({
   canWrite: boolean;
   /** 저장 중인 이동 — 응답이 올 때까지 새 자리에 보인다 */
   pendingMove: ({ id: string } & MoveTarget) | null;
+  /** 색 라벨·상태 색 (F-2) */
+  style: CalendarStyle;
+  /** 세로 규격 — 분당 픽셀 (F-3) */
+  pxPerMin: number;
+  /** 가로 규격 (F-3) */
+  columnWidth: ColumnWidth;
   onCellClick: (column: CalendarColumn, start: number) => void;
   onOpen: (appointment: CalendarAppointment) => void;
   onMove: (appointment: CalendarAppointment, target: MoveTarget) => void;
 }) {
+  const track = columnTrack(columnWidth);
   const columnsRef = useRef<HTMLDivElement>(null);
   const justDragged = useRef(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const rows = rowStarts(range);
-  const heightPx = (range.end - range.start) * PX_PER_MIN;
+  const heightPx = (range.end - range.start) * pxPerMin;
 
   const placed = useMemo<Placed[]>(
     () =>
@@ -134,7 +143,7 @@ export function DayView({
     const dx = event.clientX - drag.originX;
     const dy = event.clientY - drag.originY;
     if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-    const start = draggedStart(drag.originStart, dy, PX_PER_MIN, DRAG_SNAP_MIN, drag.duration, range);
+    const start = draggedStart(drag.originStart, dy, pxPerMin, DRAG_SNAP_MIN, drag.duration, range);
     let column = drag.originColumn;
     // 의사별 보기에서는 시간만 옮긴다(이동 API가 의사를 바꾸지 않는다).
     if (mode === "chair" && columnsRef.current) {
@@ -178,7 +187,7 @@ export function DayView({
       {/* 열 제목 — 스크롤해도 위에 붙어 있다 */}
       <div className="sticky top-0 z-30 flex border-b border-slate-300 bg-slate-50">
         <div className="w-16 shrink-0" />
-        <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(140px, 1fr))` }}>
+        <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${columns.length}, ${track})` }}>
           {columns.map((column) => (
             <div key={column.key} className="border-l border-slate-300 px-2 py-2 text-center text-base font-bold text-slate-800">
               {column.label}
@@ -197,7 +206,7 @@ export function DayView({
             <div
               key={rowStart}
               className="absolute right-2 pt-1 text-sm font-semibold tabular-nums text-slate-600"
-              style={{ top: (rowStart - range.start) * PX_PER_MIN }}
+              style={{ top: (rowStart - range.start) * pxPerMin }}
             >
               {minutesToTime(rowStart)}
             </div>
@@ -207,7 +216,7 @@ export function DayView({
         <div
           ref={columnsRef}
           className="relative grid flex-1"
-          style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(140px, 1fr))`, height: heightPx }}
+          style={{ gridTemplateColumns: `repeat(${columns.length}, ${track})`, height: heightPx }}
         >
           {columns.map((column, columnIndex) => {
             const entry = byColumn.get(column.key);
@@ -216,7 +225,7 @@ export function DayView({
               <div key={column.key} className="relative border-l border-slate-300">
                 {rows.map((rowStart) => {
                   const time = minutesToTime(rowStart);
-                  const style = { height: ROW_MINUTES * PX_PER_MIN };
+                  const rowStyle = { height: ROW_MINUTES * pxPerMin };
                   const line = rowStart % 60 === 0 ? "border-slate-300" : "border-dashed border-slate-200";
                   return canWrite ? (
                     <button
@@ -230,29 +239,32 @@ export function DayView({
                         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500",
                         line,
                       )}
-                      style={style}
+                      style={rowStyle}
                     >
                       <span className="hidden px-2 text-sm text-blue-700 group-hover:inline group-focus-visible:inline">
                         + {time}
                       </span>
                     </button>
                   ) : (
-                    <div key={rowStart} className={cn("border-t", line)} style={style} />
+                    <div key={rowStart} className={cn("border-t", line)} style={rowStyle} />
                   );
                 })}
 
                 {entry?.items.map((item) => {
-                  const box = blockBox(item, range, PX_PER_MIN, MIN_BLOCK_PX);
+                  const box = blockBox(item, range, pxPerMin, MIN_BLOCK_PX);
                   const lane = entry.lanes.get(item.id) ?? { lane: 0, lanes: 1 };
                   const draggable = canDrag(item);
                   const isDragging = drag?.moved && drag.id === item.id;
                   const isSaving = pendingMove?.id === item.id;
                   const time = minutesToTime(item.start);
-                  const status = APPOINTMENT_STATUS_LABEL[item.status];
+                  const status = style.statusStyles[item.status].name;
+                  const paint = blockPaint(item, style);
+                  const names = labelNames(item.labelIds, style);
                   return (
                     <button
                       key={item.id}
                       type="button"
+                      data-appointment-id={item.id}
                       aria-label={`${time} ${item.patientNameMasked} ${item.treatmentItem} ${status} 예약`}
                       title={
                         draggable
@@ -276,12 +288,13 @@ export function DayView({
                       className={cn(
                         "absolute z-10 flex flex-col overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-sm leading-tight shadow-sm",
                         "focus-visible:z-20 focus-visible:outline-3 focus-visible:outline-blue-500",
-                        blockColor(item.status),
+                        paint.className,
                         draggable ? "cursor-grab touch-none" : "cursor-pointer",
                         isDragging && "opacity-40",
                         isSaving && "animate-pulse",
                       )}
                       style={{
+                        ...paint.style,
                         top: box.top,
                         height: box.height - 2,
                         left: `calc(${(lane.lane / lane.lanes) * 100}% + 2px)`,
@@ -300,10 +313,9 @@ export function DayView({
                         )}
                       </span>
                       <span className="truncate">{item.treatmentItem}</span>
-                      <span>
-                        <Badge tone={STATUS_TONE[item.status]} className="px-1 py-0 text-xs">
-                          {status}
-                        </Badge>
+                      <span className="flex min-w-0 items-center gap-1">
+                        <StatusTag status={item.status} style={style} />
+                        {names.length > 0 && <span className="truncate text-xs font-semibold">{names.join(" · ")}</span>}
                       </span>
                     </button>
                   );
@@ -313,7 +325,7 @@ export function DayView({
                   <div
                     aria-hidden
                     className="pointer-events-none absolute inset-x-0.5 z-20 rounded-md border-2 border-dashed border-blue-600 bg-blue-100/80 px-1.5 py-0.5 text-sm font-bold text-blue-900"
-                    style={{ top: (drag.start - range.start) * PX_PER_MIN, height: drag.duration * PX_PER_MIN - 2 }}
+                    style={{ top: (drag.start - range.start) * pxPerMin, height: drag.duration * pxPerMin - 2 }}
                   >
                     {minutesToTime(drag.start)}~{minutesToTime(drag.start + drag.duration)} {dragItem.patientNameMasked}
                   </div>

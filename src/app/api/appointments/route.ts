@@ -4,6 +4,8 @@ import { diffDays, isValidDateKey, kstDateKey } from "@/lib/time/kst";
 import { defineRoute } from "@/server/api/define-route";
 import { ApiError } from "@/server/api/errors";
 import { createAppointment, isOnSlotBoundary } from "@/server/appointments/create";
+import { setAppointmentLabels } from "@/server/appointments/labels";
+import { MAX_LABELS_PER_APPOINTMENT } from "@/lib/calendar/colors";
 import { listAppointments, MAX_RANGE_DAYS } from "@/server/appointments/query";
 import { containsResidentRegistrationNumber, RRN_FIELD_CODE } from "@/lib/validation/forbidden-text";
 
@@ -56,6 +58,8 @@ const createBody = z.strictObject({
     .max(1000)
     .nullish()
     .refine((value) => value == null || !containsResidentRegistrationNumber(value), { message: RRN_FIELD_CODE }),
+  /** 색 라벨(F-2), 선택 */
+  labelIds: z.array(z.uuid()).max(MAX_LABELS_PER_APPOINTMENT).optional(),
 });
 
 export const POST = defineRoute({
@@ -69,11 +73,16 @@ export const POST = defineRoute({
     if (kstDateKey(ctx.body.startAt) < kstDateKey(ctx.now)) {
       throw new ApiError(400, "PAST_DATE", "지난 날짜로는 예약할 수 없습니다.");
     }
-    const appointment = await createAppointment(ctx.body, {
+    const { labelIds, ...input } = ctx.body;
+    const appointment = await createAppointment(input, {
       actorId: ctx.staff.id,
       inputDevice: ctx.inputDevice,
       tx: ctx.db,
     });
+    if (labelIds && labelIds.length > 0) {
+      await setAppointmentLabels(ctx.db, appointment.id, labelIds);
+      ctx.audit({ labelCount: new Set(labelIds).size });
+    }
     ctx.audit({ appointmentId: appointment.id, chair: appointment.chair, channel: appointment.channel });
     return Response.json({ appointment }, { status: 201 });
   },

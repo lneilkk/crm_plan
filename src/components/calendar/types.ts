@@ -24,6 +24,8 @@ export type CalendarAppointment = {
   arrivedAt: string | null;
   originalAppointmentId: string | null;
   isNewPatient: boolean;
+  /** 붙은 색 라벨 (F-2) */
+  labelIds: string[];
 };
 
 export type AppointmentDetail = {
@@ -44,6 +46,7 @@ export type AppointmentDetail = {
   arrivedAt: string | null;
   originalAppointmentId: string | null;
   memo: string | null;
+  labelIds: string[];
   createdAt: string;
   history: {
     fromStatus: AppointmentStatus | null;
@@ -79,10 +82,3 @@ export const STATUS_TONE: Record<AppointmentStatus, BadgeTone> = {
   CANCELED_ADVANCE: "muted",
   RESCHEDULED: "muted",
 };
-
-/** 예약 블록 바탕색 */
-export function blockColor(status: AppointmentStatus): string {
-  if (isDimmedStatus(status)) return "border-slate-300 bg-slate-50 text-slate-500 opacity-60";
-  if (status === "BOOKED" || status === "CONFIRMED") return "border-blue-400 bg-blue-50 text-slate-900";
-  return "border-green-500 bg-green-50 text-slate-900";
-}

@@ -11,6 +11,7 @@ import { type DateKey, isValidDateKey, isValidTime, kstDateKey, kstDateTime } fr
 import { containsResidentRegistrationNumber, MEMO_GUIDE, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
 import type { DuplicatePatient, PatientListItem } from "@/server/patients/service";
 import { Badge, Button, cn, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
+import { type CalendarStyle, LabelPicker } from "./calendar-style";
 import type { DoctorOption } from "./types";
 
 /** 예약 화면에서 고를 수 있는 채널 — 워크인은 내원 보드에서만 등록한다 */
@@ -36,12 +37,15 @@ export function BookingDialog({
   prefill,
   settings,
   doctors,
+  style,
   onClose,
   onCreated,
 }: {
   prefill: BookingPrefill;
   settings: ClinicSettings;
   doctors: DoctorOption[];
+  /** 색 라벨 (F-2) */
+  style: CalendarStyle;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -55,6 +59,7 @@ export function BookingDialog({
   const [treatmentItem, setTreatmentItem] = useState("");
   const [channel, setChannel] = useState<(typeof BOOKING_CHANNELS)[number]>("PHONE");
   const [memo, setMemo] = useState("");
+  const [labelIds, setLabelIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
 
   const durationMin = durationPreset === "custom" ? Number(customDuration) : Number(durationPreset);
@@ -72,6 +77,7 @@ export function BookingDialog({
           treatmentItem,
           channel,
           memo: memo.trim() || null,
+          ...(labelIds.length > 0 ? { labelIds } : {}),
         },
       }),
     onSuccess: onCreated,
@@ -206,6 +212,13 @@ export function BookingDialog({
             ))}
           </div>
         </fieldset>
+
+        <div>
+          <p id="booking-labels-title" className="mb-1 text-base font-semibold text-slate-800">
+            색 라벨 <span className="text-sm font-normal text-slate-500">(여러 개 고를 수 있음)</span>
+          </p>
+          <LabelPicker style={style} value={labelIds} onChange={setLabelIds} idPrefix="booking" />
+        </div>
 
         <div>
           <Label htmlFor="booking-memo">메모</Label>

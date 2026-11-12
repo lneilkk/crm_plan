@@ -254,14 +254,15 @@ model Appointment {
   createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
   updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
 
-  patient             Patient          @relation(fields: [patientId], references: [id])
-  doctor              Staff?           @relation("AppointmentDoctor", fields: [doctorId], references: [id])
-  counselor           Staff?           @relation("AppointmentCounselor", fields: [counselorId], references: [id])
-  createdBy           Staff?           @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
-  originalAppointment Appointment?     @relation("AppointmentReschedule", fields: [originalAppointmentId], references: [id])
-  rescheduledTo       Appointment?     @relation("AppointmentReschedule")
+  patient             Patient                @relation(fields: [patientId], references: [id])
+  doctor              Staff?                 @relation("AppointmentDoctor", fields: [doctorId], references: [id])
+  counselor           Staff?                 @relation("AppointmentCounselor", fields: [counselorId], references: [id])
+  createdBy           Staff?                 @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
+  originalAppointment Appointment?           @relation("AppointmentReschedule", fields: [originalAppointmentId], references: [id])
+  rescheduledTo       Appointment?           @relation("AppointmentReschedule")
   statusLogs          VisitStatusLog[]
   consultation        Consultation?
+  labels              AppointmentLabelLink[]
 
   @@index([startAt])
   @@index([patientId, startAt])
@@ -324,6 +325,7 @@ model ClinicSetting {
   businessHours    Json     @map("business_hours") @db.JsonB // 진료시간 — BusinessHours
   chairs           Json     @db.JsonB // 체어·상담실 목록 — Chair[]
   treatmentItems   Json     @map("treatment_items") @db.JsonB // 예약 항목 목록 — string[]
+  statusStyles     Json?    @map("status_styles") @db.JsonB // 예약 상태별 캘린더 표시 이름·색 — StatusStyles (F-2). 없으면 기본값
   updatedById      String?  @map("updated_by_id") @db.Uuid // 마지막으로 바꾼 직원
   updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
 
@@ -353,4 +355,34 @@ model AuditLog {
   @@index([staffId, createdAt])
   @@index([patientId, createdAt])
   @@map("audit_log")
+}
+
+/// 예약 색 라벨 목록 (F-2) — 관리자가 캘린더 [편집] 탭에서 관리. 금액·고객 분류 등 병원이 정하는 이름표이며
+/// 환자 정보·진료기록을 넣지 않는다. 칸 색은 예약에 붙은 라벨 중 sort_order가 가장 작은 라벨의 색.
+model AppointmentLabel {
+  id        String   @id @default(uuid(7)) @db.Uuid // id
+  name      String   @unique // 라벨 이름 (예: 초진, 200, vip)
+  color     String // 색 — #RRGGBB
+  sortOrder Int      @map("sort_order") // 표시·우선 순서 (작을수록 위, 칸 색 우선)
+  isActive  Boolean  @default(true) @map("is_active") // 숨긴 라벨은 새로 고를 수 없고, 이미 붙은 예약에는 그대로 보인다
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  appointments AppointmentLabelLink[]
+
+  @@map("appointment_label")
+}
+
+/// 예약 ↔ 라벨 연결 (F-2)
+model AppointmentLabelLink {
+  appointmentId String   @map("appointment_id") @db.Uuid // 예약
+  labelId       String   @map("label_id") @db.Uuid // 라벨
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3) // 붙인 시각
+
+  appointment Appointment      @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  label       AppointmentLabel @relation(fields: [labelId], references: [id], onDelete: Restrict)
+
+  @@id([appointmentId, labelId])
+  @@index([labelId])
+  @@map("appointment_label_link")
 }

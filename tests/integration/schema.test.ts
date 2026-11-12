@@ -1,5 +1,6 @@
 /**
  * T1-1 완료 기준 — 스키마가 기획서 6장 필드와 일치하고, 주민번호·진료기록 필드가 없으며,
+ * (피드백 F-2로 예약 색 라벨 테이블 2개와 clinic_setting.status_styles를 더했다.)
  * Prisma로 표현할 수 없어 마이그레이션 SQL에 직접 넣은 제약이 실제로 동작하는지 확인한다.
  */
 import pg from "pg";
@@ -116,10 +117,15 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "business_hours",
     "chairs",
     "treatment_items",
+    // F-2(피드백): 예약 상태별 캘린더 표시 이름·색. 기획서 6장에는 없다(CHECKLIST F-2 메모).
+    "status_styles",
     "updated_by_id",
     "updated_at",
   ],
   audit_log: ["id", "staff_id", "action", "patient_id", "ip", "user_agent", "result", "detail", "created_at"],
+  // F-2(피드백): 예약 색 라벨 목록과 예약 ↔ 라벨 연결. 기획서 6장에는 없다(CHECKLIST F-2 메모).
+  appointment_label: ["id", "name", "color", "sort_order", "is_active", "created_at", "updated_at"],
+  appointment_label_link: ["appointment_id", "label_id", "created_at"],
 };
 
 /** 주민등록번호·진료기록(진단·처방)을 떠올리게 하는 이름 (절대 규칙 3) */
@@ -141,7 +147,7 @@ beforeEach(async () => {
 });
 
 describe("테이블과 컬럼 (기획서 6장)", () => {
-  it("테이블은 정해진 9개뿐이다 (Prisma 마이그레이션 기록 테이블 제외)", async () => {
+  it("테이블은 정해진 것뿐이다: 기획서 6장의 9개 + 피드백 F-2의 2개 (Prisma 마이그레이션 기록 테이블 제외)", async () => {
     const rows = await db.$queryRaw<{ table_name: string }[]>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> '_prisma_migrations'
