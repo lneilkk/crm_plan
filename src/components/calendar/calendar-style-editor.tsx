@@ -29,7 +29,16 @@ let draftSeq = 0;
 const toDraft = (style: CalendarStyle): DraftLabel[] =>
   style.labels.map((label) => ({ key: label.id, id: label.id, name: label.name, color: label.color, isActive: label.isActive }));
 
-export function CalendarStyleEditor({ style, onSaved }: { style: CalendarStyle; onSaved: (message: string) => void }) {
+export function CalendarStyleEditor({
+  style,
+  onSaved,
+  section,
+}: {
+  style: CalendarStyle;
+  onSaved: (message: string) => void;
+  /** 보여 줄 부분 ([편집] 하위 메뉴) — 저장은 둘을 함께 보낸다 */
+  section: "labels" | "statuses";
+}) {
   const queryClient = useQueryClient();
   const [labels, setLabels] = useState<DraftLabel[]>(() => toDraft(style));
   const [statuses, setStatuses] = useState<StatusStyles>(() => ({ ...style.statusStyles }));
@@ -68,7 +77,8 @@ export function CalendarStyleEditor({ style, onSaved }: { style: CalendarStyle; 
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="p-4">
+      {section === "labels" && (
+      <Card className="p-3">
         <CardTitle>색 라벨</CardTitle>
         <p className="mb-3 text-sm text-slate-600">
           예약에 여러 개를 붙일 수 있습니다. 칸 색은 붙은 라벨 중 <strong>이 목록에서 가장 위에 있는 라벨</strong>의 색입니다(라벨이 없으면 상태 색).
@@ -131,8 +141,10 @@ export function CalendarStyleEditor({ style, onSaved }: { style: CalendarStyle; 
           + 라벨 추가
         </Button>
       </Card>
+      )}
 
-      <Card className="p-4">
+      {section === "statuses" && (
+      <Card className="p-3">
         <CardTitle>예약 상태 표시</CardTitle>
         <p className="mb-3 text-sm text-slate-600">
           상태 종류는 바꿀 수 없습니다(내원 보드와 통계가 씁니다). 캘린더에 보이는 이름과 색만 바꿉니다. 칸 왼쪽 띠와 상태 표시가 이 색입니다.
@@ -151,6 +163,7 @@ export function CalendarStyleEditor({ style, onSaved }: { style: CalendarStyle; 
           상태 표시를 기본값으로
         </Button>
       </Card>
+      )}
 
       <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50/95 py-3">
         <Button size="lg" disabled={problems.length > 0 || save.isPending} onClick={() => save.mutate()}>

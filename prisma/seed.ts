@@ -29,6 +29,7 @@ export const SEED_STAFF: ReadonlyArray<{ loginId: string; name: string; role: St
   { loginId: "doctor2", name: "박의사", role: "DOCTOR" },
   { loginId: "front1", name: "최프론트", role: "FRONT" },
   { loginId: "counselor1", name: "정상담", role: "COUNSELOR" },
+  { loginId: "nurse1", name: "한간호", role: "NURSE" },
 ];
 
 const SEED_BRANCH = "본점";

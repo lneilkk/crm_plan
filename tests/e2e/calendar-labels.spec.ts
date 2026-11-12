@@ -35,6 +35,7 @@ test.describe("예약 색 라벨과 칸 크기", () => {
     await login(adminPage, "admin");
     await adminPage.goto("/calendar");
     await adminPage.getByRole("group", { name: "화면" }).getByRole("button", { name: "편집" }).click();
+    await adminPage.getByRole("navigation", { name: "편집 메뉴" }).getByRole("button", { name: "색 라벨" }).click();
     await adminPage.getByLabel("200 색 코드").fill("#00AA00");
     await adminPage.getByRole("button", { name: "저장", exact: true }).click();
     await expect(adminPage.getByRole("status").filter({ hasText: "색 설정을 저장했습니다." })).toBeVisible();

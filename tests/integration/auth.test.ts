@@ -369,12 +369,12 @@ describe("T1-4 — 시드 계정으로 바로 로그인", () => {
     const seedPassword = "seed-login-test-password-0000";
     await seed(db, { FAKE_DATA_ALLOWED: "true", SEED_STAFF_PASSWORD: seedPassword });
 
-    for (const loginId of ["admin", "doctor1", "doctor2", "front1", "counselor1"]) {
+    for (const loginId of ["admin", "doctor1", "doctor2", "front1", "counselor1", "nurse1"]) {
       const res = await login(loginId, seedPassword);
       expect(res.status, loginId).toBe(200);
       expect(res.json.staff.loginId).toBe(loginId);
     }
-    expect(await db.session.count()).toBe(5);
+    expect(await db.session.count()).toBe(6);
   });
 });
 

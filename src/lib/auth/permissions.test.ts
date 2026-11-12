@@ -3,22 +3,22 @@ import { STAFF_ROLES, type StaffRole } from "@/lib/domain/staff";
 import { can, navSectionsFor, PERMISSION_NAMES, type Permission } from "./permissions";
 
 // 기대값 표 — 권한 × 역할. 표(PERMISSIONS)를 고치면 이 표도 같이 고쳐야 테스트가 통과한다.
-//                                  FRONT  COUNSELOR DOCTOR ADMIN
-const EXPECTED: Record<Permission, [boolean, boolean, boolean, boolean]> = {
-  "patient.read": /*            */ [true, true, true, true],
-  "patient.write": /*           */ [true, true, false, true],
-  "appointment.read": /*        */ [true, true, true, true],
-  "appointment.write": /*       */ [true, true, false, true],
-  "visit.write": /*             */ [true, true, false, true],
-  "stats.read": /*              */ [false, false, true, true],
-  "settings.read": /*           */ [true, true, true, true],
-  "settings.write": /*          */ [false, false, false, true],
-  "staff.read": /*              */ [true, true, true, true],
-  "staff.manage": /*            */ [false, false, false, true],
-  "data.import": /*             */ [false, false, false, true],
+//                                  FRONT  COUNSELOR DOCTOR NURSE  ADMIN
+const EXPECTED: Record<Permission, [boolean, boolean, boolean, boolean, boolean]> = {
+  "patient.read": /*            */ [true, true, true, true, true],
+  "patient.write": /*           */ [true, true, false, false, true],
+  "appointment.read": /*        */ [true, true, true, true, true],
+  "appointment.write": /*       */ [true, true, false, false, true],
+  "visit.write": /*             */ [true, true, false, true, true],
+  "stats.read": /*              */ [false, false, true, false, true],
+  "settings.read": /*           */ [true, true, true, true, true],
+  "settings.write": /*          */ [false, false, false, false, true],
+  "staff.read": /*              */ [true, true, true, true, true],
+  "staff.manage": /*            */ [false, false, false, false, true],
+  "data.import": /*             */ [false, false, false, false, true],
 };
 
-const ROLE_ORDER: StaffRole[] = ["FRONT", "COUNSELOR", "DOCTOR", "ADMIN"];
+const ROLE_ORDER: StaffRole[] = ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"];
 
 describe("권한 표", () => {
   it("기대값 표와 권한 목록이 같다 (빠지거나 더해진 권한 없음)", () => {
@@ -47,6 +47,7 @@ describe("메뉴 구역", () => {
     expect(navSectionsFor("FRONT")).toEqual(["board", "calendar", "patients"]);
     expect(navSectionsFor("COUNSELOR")).toEqual(["board", "calendar", "patients"]);
     expect(navSectionsFor("DOCTOR")).toEqual(["board", "calendar", "patients", "stats"]);
+    expect(navSectionsFor("NURSE")).toEqual(["board", "calendar", "patients"]);
     expect(navSectionsFor("ADMIN")).toEqual(["board", "calendar", "patients", "stats", "import"]);
   });
 });

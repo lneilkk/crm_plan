@@ -12,7 +12,7 @@ import { formatKstTime, kstDateKey, kstDateTime, kstMinutesOfDay, kstWeekday } f
 
 export const BASE_URL = "http://127.0.0.1:3105";
 
-export type LoginId = "admin" | "doctor1" | "doctor2" | "front1" | "counselor1";
+export type LoginId = "admin" | "doctor1" | "doctor2" | "front1" | "counselor1" | "nurse1";
 
 function password(): string {
   const value = process.env.SEED_STAFF_PASSWORD;

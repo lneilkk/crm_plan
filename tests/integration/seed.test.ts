@@ -23,7 +23,7 @@ async function settingRow() {
 }
 
 describe("seed — 테스트 계정", () => {
-  it("두 번 실행해도 직원은 5명이고 네 역할이 모두 있다", async () => {
+  it("두 번 실행해도 직원은 6명이고 다섯 역할이 모두 있다", async () => {
     await seed(db, FAKE_ENV);
     await seed(db, FAKE_ENV);
 
@@ -34,6 +34,7 @@ describe("seed — 테스트 계정", () => {
       ["doctor1", "DOCTOR"],
       ["doctor2", "DOCTOR"],
       ["front1", "FRONT"],
+      ["nurse1", "NURSE"],
     ]);
     expect(new Set(staff.map((s) => s.role))).toEqual(new Set(STAFF_ROLES));
     for (const s of staff) {

@@ -28,6 +28,7 @@ enum StaffRole {
   FRONT // 프론트
   COUNSELOR // 상담
   DOCTOR // 의사
+  NURSE // 간호 (F-11)
   ADMIN // 관리자
 
   @@map("staff_role")

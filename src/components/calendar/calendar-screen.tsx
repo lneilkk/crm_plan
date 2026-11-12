@@ -39,9 +39,8 @@ import {
   useCalendarStyle,
   useViewportHeight,
 } from "./calendar-style";
-import { CalendarStyleEditor } from "./calendar-style-editor";
 import { treatmentColorOf } from "@/lib/domain/treatment";
-import { TreatmentItemsEditor } from "./treatment-items-editor";
+import { SettingsEditor } from "@/components/settings/settings-editor";
 import { DayView, type MoveTarget } from "./day-view";
 import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } from "./types";
 import { WeekView } from "./week-view";
@@ -215,14 +214,7 @@ function Calendar({
       </div>
 
       {tab === "edit" ? (
-        styleReady ? (
-          <div className="flex flex-col gap-4">
-            <TreatmentItemsEditor settings={settings} onSaved={(message) => notify(message, "success")} />
-            <CalendarStyleEditor style={style} onSaved={(message) => notify(message, "success")} />
-          </div>
-        ) : (
-          <Spinner showLabel />
-        )
+        <SettingsEditor settings={settings} style={style} styleReady={styleReady} onSaved={(message) => notify(message, "success")} />
       ) : (
       <>
       <div className="flex flex-wrap items-center gap-2">
@@ -438,6 +430,7 @@ function DayPanel({
           style={style}
           pxPerMin={pxPerMin}
           columnWidth={size.width}
+          groupOf={mode === "chair" ? (column) => settings.chairs.find((c) => c.code === column.chair)?.group : undefined}
           onCellClick={onCellClick}
           onOpen={onOpen}
           onMove={onMove}

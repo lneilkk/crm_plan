@@ -73,6 +73,7 @@ export function DayView({
   style,
   pxPerMin,
   columnWidth,
+  groupOf,
   onCellClick,
   onOpen,
   onMove,
@@ -91,11 +92,16 @@ export function DayView({
   pxPerMin: number;
   /** 가로 규격 (F-3) */
   columnWidth: ColumnWidth;
+  /** 열 묶음 이름(과) — 체어별 보기에서 열 위에 보이고 묶음 사이에 굵은 선 (F-14) */
+  groupOf?: (column: CalendarColumn) => string | undefined;
   onCellClick: (column: CalendarColumn, start: number) => void;
   onOpen: (appointment: CalendarAppointment) => void;
   onMove: (appointment: CalendarAppointment, target: MoveTarget) => void;
 }) {
   const track = columnTrack(columnWidth);
+  /** 앞 열과 묶음이 다르면 굵은 선 */
+  const groupBoundary = (index: number) =>
+    groupOf !== undefined && index > 0 && (groupOf(columns[index]) ?? "") !== (groupOf(columns[index - 1]) ?? "");
   const columnsRef = useRef<HTMLDivElement>(null);
   const now = useNow(NOW_TICK_MS);
   // 현재 시각 선 (F-13): 오늘이고 격자 안일 때만
@@ -205,8 +211,15 @@ export function DayView({
       <div className="sticky top-0 z-30 flex border-b border-slate-300 bg-slate-50">
         <div className="w-16 shrink-0" />
         <div className="grid flex-1" style={{ gridTemplateColumns: `repeat(${columns.length}, ${track})` }}>
-          {columns.map((column) => (
-            <div key={column.key} className="border-l border-slate-300 px-2 py-2 text-center text-base font-bold text-slate-800">
+          {columns.map((column, index) => (
+            <div
+              key={column.key}
+              className={cn(
+                "border-l px-2 py-1.5 text-center text-base font-bold text-slate-800",
+                groupBoundary(index) ? "border-l-4 border-l-slate-500" : "border-slate-300",
+              )}
+            >
+              {groupOf?.(column) && <span className="block text-xs font-normal text-slate-500">{groupOf(column)}</span>}
               {column.label}
               {column.chair && column.label !== column.chair && (
                 <span className="ml-1 text-sm font-normal text-slate-500">{column.chair}</span>
@@ -251,7 +264,7 @@ export function DayView({
             const entry = byColumn.get(column.key);
             const cellName = column.chair ?? column.label;
             return (
-              <div key={column.key} className="relative border-l border-slate-300">
+              <div key={column.key} className={cn("relative border-l", groupBoundary(columnIndex) ? "border-l-4 border-l-slate-500" : "border-slate-300")}>
                 {rows.map((rowStart) => {
                   const time = minutesToTime(rowStart);
                   const rowStyle = { height: ROW_MINUTES * pxPerMin };

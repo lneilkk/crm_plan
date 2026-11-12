@@ -7,18 +7,18 @@
 import { STAFF_ROLES, type StaffRole } from "@/lib/domain/staff";
 
 export const PERMISSIONS = {
-  "patient.read": ["FRONT", "COUNSELOR", "DOCTOR", "ADMIN"],
+  "patient.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
   "patient.write": ["FRONT", "COUNSELOR", "ADMIN"],
-  "appointment.read": ["FRONT", "COUNSELOR", "DOCTOR", "ADMIN"],
+  "appointment.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
   "appointment.write": ["FRONT", "COUNSELOR", "ADMIN"],
   /** 내원 상태 변경 */
-  "visit.write": ["FRONT", "COUNSELOR", "ADMIN"],
+  "visit.write": ["FRONT", "COUNSELOR", "NURSE", "ADMIN"],
   /** 통계 — 원장·관리자 */
   "stats.read": ["DOCTOR", "ADMIN"],
-  "settings.read": ["FRONT", "COUNSELOR", "DOCTOR", "ADMIN"],
+  "settings.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
   "settings.write": ["ADMIN"],
   /** 드롭다운용 직원 이름·역할만 */
-  "staff.read": ["FRONT", "COUNSELOR", "DOCTOR", "ADMIN"],
+  "staff.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
   /** 계정 잠금 해제 등 직원 계정 관리 */
   "staff.manage": ["ADMIN"],
   /** 기존 CRM 데이터 가져오기 (F-7) — 관리자만 */

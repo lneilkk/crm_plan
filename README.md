@@ -45,6 +45,7 @@ npm run dev      # http://localhost:3100
 | `doctor1`, `doctor2` | 의사 |
 | `front1` | 프론트 |
 | `counselor1` | 상담 |
+| `nurse1` | 간호 |
 
 - 계정은 `.env`에 `FAKE_DATA_ALLOWED=true`가 있을 때만 만든다. 실제 운영 환경에는 이 변수를 두지 않으므로 테스트 계정이 생기지 않는다(병원 설정만 만든다).
 - 다시 실행하면 같은 아이디의 비밀번호를 현재 `SEED_STAFF_PASSWORD`로 다시 정하고, 잠금·실패 횟수를 풀고, 다시 활성화한다. 계정은 늘어나지 않는다.

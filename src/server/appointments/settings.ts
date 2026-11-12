@@ -30,7 +30,12 @@ const settingsSchema = z.object({
     "6": dayHours,
   }) satisfies z.ZodType<BusinessHours>,
   chairs: z.array(
-    z.object({ code: z.string().min(1), name: z.string().min(1), kind: z.enum(["CHAIR", "CONSULT_ROOM"]) }),
+    z.object({
+      code: z.string().min(1),
+      name: z.string().min(1),
+      kind: z.enum(["CHAIR", "CONSULT_ROOM"]),
+      group: z.string().min(1).optional(),
+    }),
   ),
   treatmentItems: z.array(z.string().min(1)),
   treatmentItemMeta: z.record(
