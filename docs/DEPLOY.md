@@ -164,7 +164,49 @@ docker inspect -f '{{.State.Health.Status}}' <app 컨테이너 이름>
 
 ---
 
-## 6. 이 개발 서버에서 확인한 것 (T10-1)
+## 6. AWS 프로토타입 서버 (R1~R2)
+
+Task.md는 R1~R2 프로토타입을 "AWS가 아닌 외부 서버"에 두도록 적었지만, 직원 피드백을 받기 전에 AWS 서울 리전에서 미리 확인하기로 해(2026-11-12 결정) 같은 Compose 구성을 EC2 한 대에 올렸다. R3의 본 구성(Terraform, RDS, WireGuard, 변경 불가 백업 — T10-2~T10-6)은 아니며, R3에서 새로 만든다. 가짜 데이터만 쓴다.
+
+| 항목 | 값 |
+| --- | --- |
+| 리전·서버 | ap-northeast-2, EC2 t4g.small(arm64) `crm-proto`, Ubuntu 24.04, 디스크 30GB gp3 암호화, IMDSv2만 |
+| 주소 | 고정 IP(Elastic IP) + Route 53 `crm-gbc.com` A 레코드 |
+| 접속 제한 | 보안 그룹 `crm-proto-web`: 80·443만 병원·관리자 IP(/32)에 허용. 22(SSH)는 열지 않고 SSM으로만 관리 |
+| 서버 역할 | `crm-proto-ec2`: `AmazonSSMManagedInstanceCore` + 이 도메인의 Route 53 레코드 수정(인증서 DNS 인증용, `infra/prototype/instance-role-dns-policy.json`) |
+| HTTPS | Caddy(Route 53 DNS 인증 모듈 포함)가 Let's Encrypt 인증서를 받아 `127.0.0.1:3100`(앱)으로 넘긴다. `infra/prototype/` |
+| 코드 | 서버가 GitHub 저장소를 읽기 전용 배포 키(서버 안에서 만든 키, 저장소 Deploy keys에 등록)로 받는다. `/opt/crm/app` |
+| 비밀값 | 서버의 `/opt/crm/app/.env`(root, 600)에서만 만들었다. 이 PC·저장소에 없다 |
+| 관리자 PC 접근 키 | IAM 사용자 `crm-deployer`(정책 `infra/prototype/iam-policy.json`), 키는 저장소의 `.secrets/aws/`(git·Docker 제외) |
+
+### 관리 명령 (관리자 PC, 저장소 폴더에서)
+
+```bash
+infra/prototype/ssm-run.sh 'cd /opt/crm/app && docker compose -f docker-compose.prod.yml ps'
+```
+
+### 업데이트
+
+```bash
+infra/prototype/ssm-run.sh 'cd /opt/crm/app && HOME=/root git pull -q && docker compose -f docker-compose.prod.yml up -d --build' 3000
+```
+
+### 접속 허용 IP 추가·삭제
+
+```bash
+export AWS_SHARED_CREDENTIALS_FILE=$PWD/.secrets/aws/credentials AWS_CONFIG_FILE=$PWD/.secrets/aws/config AWS_PROFILE=crm
+SG=$(aws ec2 describe-security-groups --filters Name=group-name,Values=crm-proto-web --query 'SecurityGroups[0].GroupId' --output text)
+aws ec2 authorize-security-group-ingress --group-id $SG --ip-permissions 'IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges=[{CidrIp=<IP>/32,Description=<설명>}]'
+aws ec2 revoke-security-group-ingress --group-id $SG --ip-permissions 'IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges=[{CidrIp=<IP>/32}]'
+```
+
+### 비용을 멈출 때
+
+서버 중지(`aws ec2 stop-instances`)는 디스크·고정 IP 요금만 남는다. 피드백이 끝나 완전히 지울 때는 서버 종료 → 고정 IP 해제 → 보안 그룹·역할 삭제 → DNS 레코드 삭제 순서로 한다(R3 본 구성으로 옮긴 뒤).
+
+---
+
+## 7. 이 개발 서버에서 확인한 것 (T10-1)
 
 - amd64로 `docker build` 성공, 앱 이미지 약 301MB, migrate 이미지 약 1.52GB.
 - 개발 DB에 붙여 `--read-only --cap-drop ALL --security-opt no-new-privileges`로 실행 → `/api/health` 200 ok, `docker exec … id -u` = `1000`, 프로세스 uid 1000, Docker 헬스 상태 `healthy`, `/app`에 `.env` 없음, `/app` 쓰기 불가.
