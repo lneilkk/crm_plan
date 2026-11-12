@@ -191,6 +191,10 @@ infra/prototype/ssm-run.sh 'cd /opt/crm/app && docker compose -f docker-compose.
 infra/prototype/ssm-run.sh 'cd /opt/crm/app && HOME=/root git pull -q && docker compose -f docker-compose.prod.yml up -d --build' 3000
 ```
 
+### 테스트 계정 비밀번호
+
+직원은 로그인 후 상단 [비밀번호 변경]에서 자기 비밀번호를 바꾼다(F-1). 시드(`prisma db seed`)를 다시 실행하면 테스트 계정 5개의 비밀번호가 서버 `.env`의 `SEED_STAFF_PASSWORD`로 되돌아가므로, 업데이트할 때는 시드를 다시 돌리지 않는다.
+
 ### 접속 허용 IP 추가·삭제
 
 ```bash
