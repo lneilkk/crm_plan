@@ -76,6 +76,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="font-semibold">{staff.name}</span>{" "}
               <span className="text-slate-500">({STAFF_ROLE_LABEL[staff.role]})</span>
             </span>
+            <Link
+              href="/account/password"
+              className="flex min-h-11 items-center rounded-lg px-3 text-base text-slate-700 hover:bg-slate-100"
+            >
+              비밀번호 변경
+            </Link>
             <Button variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
               로그아웃
             </Button>
