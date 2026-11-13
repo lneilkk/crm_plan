@@ -8,6 +8,7 @@ import { setAppointmentLabels } from "@/server/appointments/labels";
 import { MAX_LABELS_PER_APPOINTMENT } from "@/lib/calendar/colors";
 import { listAppointments, MAX_RANGE_DAYS } from "@/server/appointments/query";
 import { containsResidentRegistrationNumber, RRN_FIELD_CODE } from "@/lib/validation/forbidden-text";
+import { appointmentForViewer } from "@/server/appointments/price";
 
 /** 예약 API — T4-1. 생성(POST)과 캘린더 기간 조회(GET). */
 
@@ -84,6 +85,6 @@ export const POST = defineRoute({
       ctx.audit({ labelCount: new Set(labelIds).size });
     }
     ctx.audit({ appointmentId: appointment.id, chair: appointment.chair, channel: appointment.channel });
-    return Response.json({ appointment }, { status: 201 });
+    return Response.json({ appointment: appointmentForViewer(ctx.staff, appointment) }, { status: 201 });
   },
 });

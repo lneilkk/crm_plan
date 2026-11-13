@@ -7,8 +7,9 @@ import { formatKstDateLabel, kstDateKey } from "@/lib/time/kst";
 import { Button, Card, CardTitle, EmptyState, FieldError, Input, Label, Spinner, Table, TBody, Td, Th, THead, Tr } from "@/components/ui";
 import { type Period, PERIOD_PRESETS, type PeriodPreset, periodError, presetPeriod } from "./period";
 
-type Line = { item: string; patients: number; visits: number; amount: number };
-type Row = { staffId: string | null; staffName: string; patients: number; visits: number; amount: number; items: Line[] };
+/** amount는 금액 권한(appointment.price)이 있을 때만 응답에 온다 (S-3) */
+type Line = { item: string; patients: number; visits: number; amount?: number };
+type Row = { staffId: string | null; staffName: string; patients: number; visits: number; amount?: number; items: Line[] };
 type Report = { from: string; to: string; doctors: Row[]; counselors: Row[] };
 
 const won = (value: number) => `${value.toLocaleString("ko-KR")}원`;
@@ -93,6 +94,7 @@ export function PerformanceView() {
 }
 
 function PerformanceTable({ title, rows }: { title: string; rows: Row[] }) {
+  const showAmount = rows.some((row) => row.amount !== undefined);
   return (
     <Card>
       <CardTitle>{title}</CardTitle>
@@ -106,7 +108,7 @@ function PerformanceTable({ title, rows }: { title: string; rows: Row[] }) {
               <Th>예약 항목</Th>
               <Th className="text-right">환자 수</Th>
               <Th className="text-right">방문 수</Th>
-              <Th className="text-right">금액</Th>
+              {showAmount && <Th className="text-right">금액</Th>}
             </Tr>
           </THead>
           <TBody>
@@ -116,7 +118,7 @@ function PerformanceTable({ title, rows }: { title: string; rows: Row[] }) {
                 <Td>합계</Td>
                 <Td className="text-right tabular-nums">{row.patients}명</Td>
                 <Td className="text-right tabular-nums">{row.visits}건</Td>
-                <Td className="text-right tabular-nums">{won(row.amount)}</Td>
+                {showAmount && <Td className="text-right tabular-nums">{won(row.amount ?? 0)}</Td>}
               </Tr>,
               ...row.items.map((line) => (
                 <Tr key={`${row.staffId}-${line.item}`}>
@@ -124,7 +126,7 @@ function PerformanceTable({ title, rows }: { title: string; rows: Row[] }) {
                   <Td>{line.item}</Td>
                   <Td className="text-right tabular-nums">{line.patients}명</Td>
                   <Td className="text-right tabular-nums">{line.visits}건</Td>
-                  <Td className="text-right tabular-nums">{won(line.amount)}</Td>
+                  {showAmount && <Td className="text-right tabular-nums">{won(line.amount ?? 0)}</Td>}
                 </Tr>
               )),
             ])}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { STAFF_ROLES, type StaffRole } from "@/lib/domain/staff";
 import {
   DEPARTMENT_NAMES,
+  DIRECTOR_EXTRA_PERMISSIONS,
   DEPARTMENTS,
   departmentOf,
   hasPermission,
@@ -20,7 +21,7 @@ import {
  * "변환 전후 사람별 권한이 같다"는 완료 기준을 이 표로 증명한다. 이 표는 고치지 않는다.
  */
 //                                         FRONT  COUNSELOR DOCTOR NURSE  ADMIN
-const LEGACY: Record<Permission, [boolean, boolean, boolean, boolean, boolean]> = {
+const LEGACY: Partial<Record<Permission, [boolean, boolean, boolean, boolean, boolean]>> = {
   "patient.read": /*            */ [true, true, true, true, true],
   "patient.write": /*           */ [true, true, false, false, true],
   "appointment.read": /*        */ [true, true, true, true, true],
@@ -39,16 +40,22 @@ const LEGACY: Record<Permission, [boolean, boolean, boolean, boolean, boolean]> 
 };
 const ROLE_ORDER: StaffRole[] = ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"];
 const legacySetOf = (role: StaffRole) =>
-  PERMISSION_NAMES.filter((permission) => LEGACY[permission][ROLE_ORDER.indexOf(role)]);
+  PERMISSION_NAMES.filter((permission) => LEGACY[permission]?.[ROLE_ORDER.indexOf(role)]);
 /** S-2b 이후: 직무 권한은 DB(job_permission)에서 온다. 첫 설치 때 DB에 들어가는 값이 INITIAL_JOB_PERMISSIONS */
 const legacyAccess = (role: StaffRole) => ({
   jobPermissions: INITIAL_JOB_PERMISSIONS[role],
   extraPermissions: LEGACY_ROLE_EXTRAS[role],
 });
 
+const LEGACY_NAMES = Object.keys(LEGACY) as Permission[];
+/** S-2 이후에 생긴 권한 — 생길 때마다 여기에 더하고 기본값 테스트를 따로 둔다 */
+const ADDED_AFTER_S2: Permission[] = ["appointment.price"];
+/** S-2 전에 있던 권한만 남긴다 (사람별 권한이 그대로인지 비교할 때) */
+const legacyOnly = (permissions: Permission[]) => permissions.filter((p) => LEGACY_NAMES.includes(p));
+
 describe("권한 목록", () => {
-  it("S-2 전과 같은 권한 15개, 역할 5개", () => {
-    expect([...PERMISSION_NAMES].sort()).toEqual(Object.keys(LEGACY).sort());
+  it("S-2 전 권한 15개 + 이후에 생긴 권한, 역할 5개", () => {
+    expect([...PERMISSION_NAMES].sort()).toEqual([...LEGACY_NAMES, ...ADDED_AFTER_S2].sort());
     expect([...ROLE_ORDER].sort()).toEqual([...STAFF_ROLES].sort());
   });
 });
@@ -79,13 +86,13 @@ describe("부서와 직무", () => {
 describe("변환 전후 사람별 권한이 같다 (S-2 완료 기준)", () => {
   for (const role of ROLE_ORDER) {
     it(`${role}: 직무 초기값 + 변환 때 준 추가 권한 = S-2 전 권한`, () => {
-      expect(permissionsOf(legacyAccess(role))).toEqual(legacySetOf(role));
+      expect(legacyOnly(permissionsOf(legacyAccess(role)))).toEqual(legacySetOf(role));
     });
   }
 
-  for (const permission of PERMISSION_NAMES) {
+  for (const permission of LEGACY_NAMES) {
     ROLE_ORDER.forEach((role, index) => {
-      const expected = LEGACY[permission][index];
+      const expected = LEGACY[permission]![index];
       it(`${role} × ${permission} → ${expected ? "허용" : "거부"}`, () => {
         expect(hasPermission(legacyAccess(role), permission)).toBe(expected);
       });
@@ -152,5 +159,19 @@ describe("설정으로 풀 수 없는 규칙 (S-2b)", () => {
   it("관리자(운영)의 초기값은 모든 권한이다 — 처음 설치한 병원이 권한 관리자 없이 시작하지 않게", () => {
     expect([...INITIAL_JOB_PERMISSIONS.ADMIN].sort()).toEqual([...PERMISSION_NAMES].sort());
     expect(INITIAL_JOB_PERMISSIONS.ADMIN).toContain(PERMISSION_MANAGER);
+  });
+});
+
+describe("예약 금액 보기·고치기 (S-3)", () => {
+  it("첫 설치 값: 상담·관리자 직무만. 프론트·의사·간호 직무에는 없다", () => {
+    expect(INITIAL_JOB_PERMISSIONS.COUNSELOR).toContain("appointment.price");
+    expect(INITIAL_JOB_PERMISSIONS.ADMIN).toContain("appointment.price");
+    for (const role of ["FRONT", "DOCTOR", "NURSE"] as const) expect(INITIAL_JOB_PERMISSIONS[role]).not.toContain("appointment.price");
+  });
+
+  it("원장(의사 + 추가 권한)은 금액을 본다. 추가 권한 없는 의사는 못 본다", () => {
+    expect(DIRECTOR_EXTRA_PERMISSIONS).toEqual(expect.arrayContaining(["stats.read", "consult.read", "appointment.price"]));
+    expect(hasPermission({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: DIRECTOR_EXTRA_PERMISSIONS }, "appointment.price")).toBe(true);
+    expect(hasPermission({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: [] }, "appointment.price")).toBe(false);
   });
 });

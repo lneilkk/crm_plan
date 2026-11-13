@@ -2,6 +2,7 @@ import { z } from "zod";
 import { APPOINTMENT_STATUSES } from "@/lib/domain/appointment";
 import { defineRoute } from "@/server/api/define-route";
 import { appointmentPatientId, revertStatus } from "@/server/appointments/status";
+import { appointmentForViewer } from "@/server/appointments/price";
 
 /**
  * 상태 되돌리기 (T5-2, 보드의 5초 되돌리기와 이후 정정). 최신 이력의 이전 상태로 되돌린다.
@@ -27,6 +28,6 @@ export const POST = defineRoute({
       inputDevice: ctx.inputDevice,
     }, ctx.db);
     ctx.audit({ toStatus: result.appointment.status });
-    return { appointment: result.appointment, isLate: result.isLate };
+    return { appointment: appointmentForViewer(ctx.staff, result.appointment), isLate: result.isLate };
   },
 });

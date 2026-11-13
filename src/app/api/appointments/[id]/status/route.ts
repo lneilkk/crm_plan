@@ -3,6 +3,7 @@ import { APPOINTMENT_STATUSES, VISIT_REASON_CODES } from "@/lib/domain/appointme
 import { defineRoute } from "@/server/api/define-route";
 import { ApiError } from "@/server/api/errors";
 import { appointmentPatientId, changeStatus } from "@/server/appointments/status";
+import { appointmentForViewer } from "@/server/appointments/price";
 
 /**
  * 내원 상태 변경 (T5-2, 기획서 4-3). 상태 변경과 visit_status_log 한 행이 한 트랜잭션이다.
@@ -36,6 +37,6 @@ export const POST = defineRoute({
       now: ctx.now,
       inputDevice: ctx.inputDevice,
     }, ctx.db);
-    return { appointment: result.appointment, isLate: result.isLate };
+    return { appointment: appointmentForViewer(ctx.staff, result.appointment), isLate: result.isLate };
   },
 });

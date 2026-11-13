@@ -2,7 +2,8 @@ import { z } from "zod";
 import { diffDays, isValidDateKey } from "@/lib/time/kst";
 import { defineRoute } from "@/server/api/define-route";
 import { ApiError } from "@/server/api/errors";
-import { buildPerformanceReport } from "@/server/stats/performance";
+import { canSeePrice } from "@/server/appointments/price";
+import { buildPerformanceReport, withoutAmounts } from "@/server/stats/performance";
 import { MAX_STATS_DAYS } from "@/server/stats/visit-report";
 
 const dateKey = z.string().refine(isValidDateKey);
@@ -22,6 +23,7 @@ export const GET = defineRoute({
     if (days > MAX_STATS_DAYS) throw new ApiError(400, "RANGE_TOO_LONG", `기간은 최대 ${MAX_STATS_DAYS}일까지 볼 수 있습니다.`);
     const { report, rows } = await buildPerformanceReport(from, to);
     ctx.audit({ days, rows });
-    return report;
+    // 금액은 금액 권한이 있는 사람에게만 (S-3)
+    return canSeePrice(ctx.staff) ? report : withoutAmounts(report);
   },
 });

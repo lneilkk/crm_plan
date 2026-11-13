@@ -37,6 +37,9 @@ test.describe("예약 고치기와 실적", () => {
     await expect(dialog.getByRole("form", { name: "예약 고치기" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "고치기", exact: true }).click();
     const form = dialog.getByRole("form", { name: "예약 고치기" });
+    // 프론트는 금액 권한이 없다 (S-3): 상세에 금액 줄이 없고, 고치기에 할인율 칸이 없다
+    await expect(dialog.getByText("금액", { exact: true })).toHaveCount(0);
+    await expect(form.getByLabel("할인율(%)")).toHaveCount(0);
     await form.getByLabel("예약 항목").selectOption("스케일링");
     await expect(form.getByText("일반 진료는 상담실에 둘 수 없습니다. 진료 체어를 고르세요.")).toBeVisible();
     await form.getByLabel("체어").selectOption("E1");
@@ -49,10 +52,15 @@ test.describe("예약 고치기와 실적", () => {
     // 현재 시각 선 (F-13): 오늘 일 보기에 하나 (예약을 지금 뒤에 만들었으므로 격자 안에 있다)
     await expect(page.getByTestId("now-line")).toHaveCount(1);
     const check = await apiAs("front1");
-    const detail = (await (await check.get(`/api/appointments/${id}`)).json()) as { appointment: { chair: string; listPrice: number } };
+    const detail = (await (await check.get(`/api/appointments/${id}`)).json()) as { appointment: { chair: string; listPrice?: number } };
     expect(detail.appointment.chair).toBe("E1");
-    expect(detail.appointment.listPrice).toBeGreaterThanOrEqual(0);
+    // 프론트는 금액 권한이 없어 응답에 단가가 없다 (S-3). 관리자는 바뀐 항목의 단가를 본다.
+    expect(detail.appointment).not.toHaveProperty("listPrice");
     await check.dispose();
+    const admin = await apiAs("admin");
+    const adminDetail = (await (await admin.get(`/api/appointments/${id}`)).json()) as { appointment: { listPrice: number } };
+    expect(adminDetail.appointment.listPrice).toBeGreaterThanOrEqual(0);
+    await admin.dispose();
   });
 
   test("관리자는 통계의 [실적] 탭에서 의사별·상담자별 실적을 본다", async ({ page }) => {

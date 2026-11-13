@@ -4,6 +4,7 @@ import { ARRIVED_STATUSES } from "@/lib/domain/appointment";
 import { amountAfterDiscount } from "@/lib/domain/treatment";
 import { type DateKey, kstDayRange } from "@/lib/time/kst";
 import { db } from "@/server/db";
+import { omit } from "@/server/appointments/price";
 
 /**
  * 의사·상담자 실적 — F-6. 기간(한국 시간 날짜, 양끝 포함)에 시작한 예약 중 내원한 예약(내원·진료중·수납완료·귀가)만 센다.
@@ -97,4 +98,26 @@ export async function buildPerformanceReport(from: DateKey, to: DateKey): Promis
     },
     rows: appointments.length,
   };
+}
+
+export type PerformanceLineWithoutAmount = Omit<PerformanceLine, "amount">;
+export type PerformanceRowWithoutAmount = Omit<PerformanceRow, "amount" | "items"> & { items: PerformanceLineWithoutAmount[] };
+
+/**
+ * 금액 권한(appointment.price)이 없는 사람용 실적 (S-3) — 금액 항목을 빼고, 금액 순서가 드러나지 않게 방문 수 순으로 다시 정렬한다.
+ */
+export function withoutAmounts(report: PerformanceReport) {
+  const byVisits = <T extends { visits: number; patients: number }>(list: T[], name: (x: T) => string) =>
+    list.sort((a, b) => b.visits - a.visits || b.patients - a.patients || name(a).localeCompare(name(b)));
+  const strip = (rows: PerformanceRow[]): PerformanceRowWithoutAmount[] =>
+    rows
+      .map((row) => ({
+        ...omit(row, ["amount", "items"]),
+        items: byVisits(
+          row.items.map((line) => omit(line, ["amount"])),
+          (line) => line.item,
+        ),
+      }))
+      .sort((a, b) => Number(a.staffId === null) - Number(b.staffId === null) || b.visits - a.visits || b.patients - a.patients || a.staffName.localeCompare(b.staffName));
+  return { from: report.from, to: report.to, doctors: strip(report.doctors), counselors: strip(report.counselors) };
 }

@@ -13,6 +13,7 @@ import {
   treatmentMetaOf,
 } from "@/lib/domain/treatment";
 import { isHexColor } from "@/lib/calendar/colors";
+import { usePermissions } from "@/components/auth/use-permissions";
 import { Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
 
 type Draft = { key: string; name: string; category: TreatmentCategory; price: string; color: string };
@@ -21,15 +22,17 @@ let seq = 0;
 const toDraft = (settings: ClinicSettings): Draft[] =>
   settings.treatmentItems.map((name) => {
     const meta = treatmentMetaOf(settings.treatmentItemMeta, name);
-    return { key: `i-${(seq += 1)}`, name, category: meta.category, price: String(meta.price), color: treatmentColorOf(settings.treatmentItemMeta, name) ?? "#E0E0E0" };
+    return { key: `i-${(seq += 1)}`, name, category: meta.category, price: String(meta.price ?? 0), color: treatmentColorOf(settings.treatmentItemMeta, name) ?? "#E0E0E0" };
   });
 
 /**
  * [편집] 탭의 예약 항목 — F-5(고가·일반 구분: 상담실에는 고가만), F-6(단가: 실적 금액).
  * 저장하면 새 예약부터 이 단가가 쓰인다. 이미 있는 예약의 항목 이름·단가는 그대로다.
+ * 단가 칸은 금액 권한(appointment.price)이 있을 때만 보이고, 없으면 단가를 보내지 않는다(서버가 기존 단가를 유지, S-3).
  */
 export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSettings; onSaved: (message: string) => void }) {
   const queryClient = useQueryClient();
+  const canPrice = usePermissions().has("appointment.price");
   const [items, setItems] = useState<Draft[]>(() => toDraft(settings));
 
   const problems: string[] = [];
@@ -37,7 +40,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
   if (items.length === 0) problems.push("예약 항목이 하나 이상 있어야 합니다.");
   if (names.some((name) => !name)) problems.push("이름이 빈 예약 항목이 있습니다.");
   if (new Set(names.filter(Boolean)).size !== names.filter(Boolean).length) problems.push("같은 이름의 예약 항목이 있습니다.");
-  if (items.some((item) => !/^\d+$/.test(item.price) || Number(item.price) > PRICE_MAX)) problems.push("단가는 0 이상의 원 단위 숫자로 입력하세요.");
+  if (canPrice && items.some((item) => !/^\d+$/.test(item.price) || Number(item.price) > PRICE_MAX)) problems.push("단가는 0 이상의 원 단위 숫자로 입력하세요.");
   if (items.some((item) => !isHexColor(item.color))) problems.push("색은 #RRGGBB 형식이어야 합니다.");
 
   const save = useMutation({
@@ -45,7 +48,12 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
       apiFetch("/api/settings/treatment-items", {
         method: "PUT",
         body: {
-          items: items.map((item) => ({ name: item.name.trim(), category: item.category, price: Number(item.price), color: item.color })),
+          items: items.map((item) => ({
+            name: item.name.trim(),
+            category: item.category,
+            ...(canPrice ? { price: Number(item.price) } : {}),
+            color: item.color,
+          })),
         },
       }),
     onSuccess: async () => {
@@ -101,6 +109,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
                 </option>
               ))}
             </Select>
+            {canPrice && (
             <span className="flex items-center gap-1">
               <Input
                 aria-label={`${item.name || "새 항목"} 단가(원)`}
@@ -111,6 +120,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
               />
               원
             </span>
+            )}
             <Button variant="ghost" className="text-red-700" aria-label={`${item.name} 삭제`} onClick={() => setItems((list) => list.filter((x) => x.key !== item.key))}>
               삭제
             </Button>

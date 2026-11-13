@@ -3,6 +3,7 @@ import { defineRoute } from "@/server/api/define-route";
 import { isOnSlotBoundary } from "@/server/appointments/create";
 import { moveAppointment } from "@/server/appointments/move";
 import { appointmentPatientId } from "@/server/appointments/status";
+import { appointmentForViewer } from "@/server/appointments/price";
 
 /**
  * 캘린더 끌어 옮기기 — T4-1. 같은 날 안의 시간·체어·소요시간 조정이며 예약변경(RESCHEDULED)이 아니라 상태 이력을 쓰지 않는다.
@@ -32,6 +33,6 @@ export const PATCH = defineRoute({
       fromChair: before.chair,
       chair: after.chair,
     });
-    return { appointment: after };
+    return { appointment: appointmentForViewer(ctx.staff, after) };
   },
 });

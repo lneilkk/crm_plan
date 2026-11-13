@@ -4,6 +4,7 @@ import { isValidDiscountRate } from "@/lib/domain/treatment";
 import { containsResidentRegistrationNumber, RRN_FIELD_CODE } from "@/lib/validation/forbidden-text";
 import { getAppointmentDetail } from "@/server/appointments/query";
 import { updateAppointment } from "@/server/appointments/update";
+import { appointmentForViewer, assertCanChangePrice } from "@/server/appointments/price";
 
 /** 예약 한 건 상세와 상태 이력 — T4-1 */
 export const GET = defineRoute({
@@ -14,12 +15,13 @@ export const GET = defineRoute({
     const appointment = await getAppointmentDetail(ctx.params.id);
     ctx.touchPatients([appointment.patientId]);
     ctx.audit({ appointmentId: appointment.id });
-    return { appointment };
+    return { appointment: appointmentForViewer(ctx.staff, appointment) };
   },
 });
 
 /**
- * 예약 고치기 — F-5(항목·체어), F-6(할인율), F-8(메모). 보낸 필드만 바꾼다. 상태는 바꾸지 않는다.
+ * 예약 고치기 — F-5(항목·체어), F-6(할인율), F-8(메모). 보낸 필드만 바꾼다(보내지 않은 단가·할인율은 그대로). 상태는 바꾸지 않는다.
+ * 할인율은 금액 권한(appointment.price)이 있어야 바꿀 수 있다(S-3). 단가는 항목을 바꿀 때 서버가 설정에서 다시 정한다.
  * 감사 행에는 바꾼 필드 이름만 남긴다(메모 내용은 남기지 않는다).
  */
 const updateBody = z
@@ -46,6 +48,7 @@ export const PATCH = defineRoute({
   body: updateBody,
   handler: async (ctx) => {
     ctx.audit({ appointmentId: ctx.params.id });
+    if (ctx.body.discountRate !== undefined) assertCanChangePrice(ctx.staff);
     const { before, after, fields } = await updateAppointment(ctx.db, ctx.params.id, ctx.body, ctx.now);
     ctx.touchPatients([before.patientId]);
     ctx.audit({ fields: fields.join(","), ...(before.chair !== after.chair ? { fromChair: before.chair, toChair: after.chair } : {}) });

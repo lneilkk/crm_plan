@@ -20,6 +20,8 @@ export const PERMISSIONS = {
   "patient.write": "고객 등록·수정",
   "appointment.read": "예약·내원 보드 보기",
   "appointment.write": "예약 만들기·옮기기·고치기",
+  /** 단가·할인율·금액. 없으면 화면뿐 아니라 API 응답에서도 빠지고, 할인율·단가를 바꿀 수 없다 (S-3) */
+  "appointment.price": "예약 금액(단가·할인율) 보기·고치기",
   "visit.write": "내원 상태 변경",
   "stats.read": "통계·실적 보기",
   "settings.read": "병원 설정 읽기",
@@ -73,7 +75,7 @@ export const PERMISSION_MANAGER = "staff.manage" satisfies Permission;
  */
 export const INITIAL_JOB_PERMISSIONS = {
   FRONT: [...EVERYONE_READS, "patient.write", "appointment.write", "visit.write"],
-  COUNSELOR: [...EVERYONE_READS, "patient.write", "appointment.write", "visit.write", "consult.read", "consult.write"],
+  COUNSELOR: [...EVERYONE_READS, "patient.write", "appointment.write", "appointment.price", "visit.write", "consult.read", "consult.write"],
   /** 원장의 통계·상담 보기는 개인 추가 권한으로 준다(사용자 결정 2026-11-13) */
   DOCTOR: [...EVERYONE_READS, "surgery.note"],
   NURSE: [...EVERYONE_READS, "visit.write"],
@@ -93,6 +95,12 @@ export const LEGACY_ROLE_EXTRAS = {
   NURSE: [],
   ADMIN: [],
 } as const satisfies Record<StaffRole, readonly Permission[]>;
+
+/**
+ * 원장 계정이 갖는 개인 추가 권한 — S-2 변환(통계·상담 보기) + S-3 변환(금액 보기).
+ * 마이그레이션이 기존 원장 계정(통계 보기를 가진 의사 계정)에 준 값과 같다. 시드의 의사 시험 계정과 테스트가 쓴다.
+ */
+export const DIRECTOR_EXTRA_PERMISSIONS: readonly Permission[] = [...LEGACY_ROLE_EXTRAS.DOCTOR, "appointment.price"];
 
 /** 권한 계산에 필요한 값: DB의 직무 권한(job_permission)과 개인 추가 권한 */
 export type StaffAccess = { jobPermissions: readonly string[]; extraPermissions: readonly string[] };

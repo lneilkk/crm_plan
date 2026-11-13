@@ -153,7 +153,8 @@ function DetailBody({
   const start = new Date(data.startAt);
   // 보기가 기본이고, [고치기]를 눌렀을 때만 수정 양식·라벨 고르기가 보인다 (F-12)
   const [editing, setEditing] = useState(false);
-  const amount = amountAfterDiscount(data.listPrice, data.discountRate);
+  // 금액은 금액 권한이 있을 때만 응답에 온다 (S-3)
+  const price = data.listPrice !== undefined && data.discountRate !== undefined ? { list: data.listPrice, discount: data.discountRate } : null;
   const labelNamesShown = style.labels.filter((label) => data.labelIds.includes(label.id));
   return (
     <div className="flex flex-col gap-4">
@@ -179,10 +180,12 @@ function DetailBody({
         <Row label="채널">{APPOINTMENT_CHANNEL_LABEL[data.channel]}</Row>
         {data.arrivedAt && <Row label="내원 시각">{dateTimeLabel(data.arrivedAt)}</Row>}
         {data.originalAppointmentId && <Row label="변경 전 예약">있음 (예약변경으로 만든 예약)</Row>}
-        <Row label="금액">
-          {data.listPrice.toLocaleString("ko-KR")}원{data.discountRate > 0 && ` · 할인 ${data.discountRate}%`} →{" "}
-          <strong>{amount.toLocaleString("ko-KR")}원</strong>
-        </Row>
+        {price && (
+          <Row label="금액">
+            {price.list.toLocaleString("ko-KR")}원{price.discount > 0 && ` · 할인 ${price.discount}%`} →{" "}
+            <strong>{amountAfterDiscount(price.list, price.discount).toLocaleString("ko-KR")}원</strong>
+          </Row>
+        )}
         <Row label="색 라벨">
           {labelNamesShown.length === 0 ? (
             "-"
@@ -215,6 +218,7 @@ function DetailBody({
             settings={settings}
             doctors={doctors}
             canWrite={canWrite}
+            canPrice={permissions.includes("appointment.price")}
             today={today}
             onSaved={() => {
               setEditing(false);

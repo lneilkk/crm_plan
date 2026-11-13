@@ -24,6 +24,7 @@ export function AppointmentEditSection({
   settings,
   doctors,
   canWrite,
+  canPrice,
   today,
   onSaved,
 }: {
@@ -31,6 +32,8 @@ export function AppointmentEditSection({
   settings: ClinicSettings;
   doctors: DoctorOption[];
   canWrite: boolean;
+  /** 금액 권한(appointment.price). 없으면 단가·할인율을 보여 주지도 보내지도 않는다 (S-3) */
+  canPrice: boolean;
   today: string;
   onSaved: () => void;
 }) {
@@ -44,17 +47,18 @@ export function AppointmentEditSection({
   const [chair, setChair] = useState(data.chair);
   const [doctorId, setDoctorId] = useState(data.doctorId ?? "");
   const [counselorId, setCounselorId] = useState(data.counselorId ?? "");
-  const [discount, setDiscount] = useState(String(data.discountRate));
+  const [discount, setDiscount] = useState(String(data.discountRate ?? 0));
   const [memo, setMemo] = useState(data.memo ?? "");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const placementEditable =
     kstDateKey(new Date(data.startAt)) >= today && (SLOT_HOLDING_STATUSES as readonly string[]).includes(data.status);
   const itemChanged = item !== data.treatmentItem;
-  const price = itemChanged ? treatmentMetaOf(settings.treatmentItemMeta, item).price : data.listPrice;
+  const price = (itemChanged ? treatmentMetaOf(settings.treatmentItemMeta, item).price : data.listPrice) ?? 0;
   const discountNumber = Number(discount);
-  const discountOk = discount.trim() !== "" && isValidDiscountRate(discountNumber);
-  const amount = discountOk ? amountAfterDiscount(price, discountNumber) : null;
+  // 금액 권한이 없으면 할인율 칸이 없으므로 검사할 것도 없다
+  const discountOk = !canPrice || (discount.trim() !== "" && isValidDiscountRate(discountNumber));
+  const amount = canPrice && discountOk ? amountAfterDiscount(price, discountNumber) : null;
   const chairKind = (code: string) => settings.chairs.find((c) => c.code === code)?.kind;
   const needsChair = chairKind(chair) === "CONSULT_ROOM" && !isPremiumItem(settings.treatmentItemMeta, item);
 
@@ -63,7 +67,7 @@ export function AppointmentEditSection({
   if (chair !== data.chair) changes.chair = chair;
   if (doctorId !== (data.doctorId ?? "")) changes.doctorId = doctorId || null;
   if (counselorId !== (data.counselorId ?? "")) changes.counselorId = counselorId || null;
-  if (discountOk && discountNumber !== data.discountRate) changes.discountRate = discountNumber;
+  if (canPrice && discountOk && discountNumber !== data.discountRate) changes.discountRate = discountNumber;
   if (memo.trim() !== (data.memo ?? "")) changes.memo = memo.trim() || null;
   const dirty = Object.keys(changes).length > 0;
 
@@ -143,8 +147,9 @@ export function AppointmentEditSection({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-slate-500">지난 날이거나 처리가 끝난 예약은 메모와 할인율만 고칠 수 있습니다.</p>
+        <p className="text-sm text-slate-500">지난 날이거나 처리가 끝난 예약은 {canPrice ? "메모와 할인율만" : "메모만"} 고칠 수 있습니다.</p>
       )}
+      {canPrice && (
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor="edit-discount">할인율(%)</Label>
@@ -162,6 +167,7 @@ export function AppointmentEditSection({
         </div>
         {priceLine}
       </div>
+      )}
       <div>
         <Label htmlFor="edit-memo">메모</Label>
         <textarea

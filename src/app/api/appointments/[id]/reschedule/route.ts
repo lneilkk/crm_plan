@@ -3,6 +3,7 @@ import { APPOINTMENT_STATUSES } from "@/lib/domain/appointment";
 import { defineRoute } from "@/server/api/define-route";
 import { rescheduleAppointment } from "@/server/appointments/reschedule";
 import { appointmentPatientId } from "@/server/appointments/status";
+import { appointmentForViewer } from "@/server/appointments/price";
 
 /**
  * 예약변경 (T5-2). 원 예약을 '예약변경'으로 바꾸고 원 예약 id를 가진 새 예약을 한 트랜잭션에 만든다.
@@ -40,6 +41,6 @@ export const POST = defineRoute({
       inputDevice: ctx.inputDevice,
     }, ctx.db);
     ctx.audit({ newAppointmentId: result.appointment.id });
-    return result;
+    return { original: appointmentForViewer(ctx.staff, result.original), appointment: appointmentForViewer(ctx.staff, result.appointment) };
   },
 });

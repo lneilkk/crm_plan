@@ -21,7 +21,10 @@ import { createStaff, db, resetDb } from "./helpers";
 
 beforeEach(resetDb);
 
-const MIGRATION = join(process.cwd(), "prisma/migrations/20261113010000_job_permission/migration.sql");
+/** 직무 권한을 넣는 마이그레이션 (적용 순서대로). 새 권한을 처음부터 주는 마이그레이션을 만들면 여기에 더한다. */
+const JOB_PERMISSION_MIGRATIONS = ["20261113010000_job_permission", "20261113020000_appointment_price_permission"].map((name) =>
+  join(process.cwd(), "prisma/migrations", name, "migration.sql"),
+);
 const STATS_URL = "/api/stats?from=2026-11-01&to=2026-11-07&unit=day";
 
 class Rollback extends Error {}
@@ -52,15 +55,16 @@ const initialByRole = () =>
   Object.fromEntries(STAFF_ROLES.map((role) => [role, [...INITIAL_JOB_PERMISSIONS[role]].sort()]));
 
 describe("첫 설치 값", () => {
-  it("마이그레이션의 INSERT가 넣는 값 = INITIAL_JOB_PERMISSIONS", async () => {
-    const sql = readFileSync(MIGRATION, "utf8")
-      .split("\n")
-      .filter((line) => !line.trimStart().startsWith("--"))
-      .join("\n");
-    const inserts = sql
-      .split(";")
-      .map((s) => s.trim())
-      .filter((s) => /^INSERT\s/i.test(s));
+  it("마이그레이션들의 INSERT가 넣는 값 = INITIAL_JOB_PERMISSIONS (새로 설치한 병원의 직무 권한)", async () => {
+    const inserts = JOB_PERMISSION_MIGRATIONS.flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .filter((line) => !line.trimStart().startsWith("--"))
+        .join("\n")
+        .split(";")
+        .map((s) => s.trim())
+        .filter((s) => /^INSERT\s/i.test(s)),
+    );
     expect(inserts.length).toBeGreaterThan(0);
     const rows = await rolledBack(async (tx) => {
       await tx.jobPermission.deleteMany({});
@@ -151,5 +155,30 @@ describe("권한 관리자 0명 방지 (설정으로 풀 수 없음)", () => {
     await expect(assertPermissionManagerRemains(db)).rejects.toMatchObject({ code: "LAST_PERMISSION_MANAGER" });
     await createStaff({ role: "ADMIN" });
     await expect(assertPermissionManagerRemains(db)).resolves.toBeUndefined();
+  });
+});
+
+describe("S-3 금액 권한 변환 (기존 계정)", () => {
+  it("원장(통계 보기 추가 권한이 있는 의사)에게만 금액 권한을 더하고, 다시 돌려도 겹치지 않는다", async () => {
+    const file = JOB_PERMISSION_MIGRATIONS[1];
+    const updates = readFileSync(file, "utf8")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("--"))
+      .join("\n")
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => /^UPDATE\s/i.test(s));
+    expect(updates).toHaveLength(1);
+    const result = await rolledBack(async (tx) => {
+      const director = await tx.staff.create({ data: { loginId: "s3-director", name: "변환전", role: "DOCTOR", extraPermissions: ["stats.read", "consult.read"], passwordHash: "test-placeholder-not-a-password-hash" } });
+      const plain = await tx.staff.create({ data: { loginId: "s3-doctor", name: "변환전", role: "DOCTOR", passwordHash: "test-placeholder-not-a-password-hash" } });
+      const nurse = await tx.staff.create({ data: { loginId: "s3-nurse", name: "변환전", role: "NURSE", extraPermissions: ["stats.read"], passwordHash: "test-placeholder-not-a-password-hash" } });
+      for (let i = 0; i < 2; i += 1) for (const statement of updates) await tx.$executeRawUnsafe(statement);
+      const read = async (id: string) => (await tx.staff.findUniqueOrThrow({ where: { id } })).extraPermissions;
+      return { director: await read(director.id), plain: await read(plain.id), nurse: await read(nurse.id) };
+    });
+    expect(result.director).toEqual(["stats.read", "consult.read", "appointment.price"]);
+    expect(result.plain).toEqual([]);
+    expect(result.nurse).toEqual(["stats.read"]);
   });
 });

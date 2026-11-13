@@ -15,7 +15,7 @@
  */
 import { pathToFileURL } from "node:url";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { LEGACY_ROLE_EXTRAS } from "@/lib/auth/permissions";
+import { DIRECTOR_EXTRA_PERMISSIONS } from "@/lib/auth/permissions";
 import { DEFAULT_CLINIC_SETTINGS } from "@/lib/domain/clinic";
 import type { StaffRole } from "@/lib/domain/staff";
 import { hashPassword } from "@/server/auth/password";
@@ -24,6 +24,8 @@ import { hashPassword } from "@/server/auth/password";
 export const MIN_SEED_PASSWORD_LENGTH = 12;
 
 /** 역할별 테스트 계정. 이름은 지어낸 것이다(절대 규칙 1). */
+const extrasOf = (role: StaffRole): string[] => (role === "DOCTOR" ? [...DIRECTOR_EXTRA_PERMISSIONS] : []);
+
 export const SEED_STAFF: ReadonlyArray<{ loginId: string; name: string; role: StaffRole }> = [
   { loginId: "admin", name: "김관리", role: "ADMIN" },
   { loginId: "doctor1", name: "이의사", role: "DOCTOR" },
@@ -91,9 +93,9 @@ export async function seed(db: PrismaClient, env: SeedEnv): Promise<SeedResult> 
     const reset = { passwordHash, failedLoginCount: 0, lockedAt: null, isActive: true };
     await db.staff.upsert({
       where: { loginId },
-      // 의사 시험 계정은 원장처럼 통계·상담 보기를 추가 권한으로 갖는다 (S-2 변환과 같은 값)
-      create: { loginId, name, role, extraPermissions: [...LEGACY_ROLE_EXTRAS[role]], branch: SEED_BRANCH, ...reset },
-      update: { name, role, extraPermissions: [...LEGACY_ROLE_EXTRAS[role]], branch: SEED_BRANCH, ...reset },
+      // 의사 시험 계정은 원장처럼 통계·상담 보기·금액을 추가 권한으로 갖는다 (S-2·S-3 변환과 같은 값)
+      create: { loginId, name, role, extraPermissions: extrasOf(role), branch: SEED_BRANCH, ...reset },
+      update: { name, role, extraPermissions: extrasOf(role), branch: SEED_BRANCH, ...reset },
     });
   }
 

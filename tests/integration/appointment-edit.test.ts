@@ -137,7 +137,8 @@ describe("F-8 메모·F-6 할인율 고치기", () => {
   });
 
   it("지난 날 내원 예약도 메모·할인율은 고칠 수 있지만 항목·체어는 409", async () => {
-    const { cookie } = await loginAs("FRONT");
+    // 할인율은 금액 권한(appointment.price)이 있어야 고친다(S-3) — 상담 직무는 기본으로 가진다
+    const { cookie } = await loginAs("COUNSELOR");
     const past = await createAppointment({
       startAt: kstDateTime(addDays(TODAY, -3), "10:00"),
       status: "LEFT",
