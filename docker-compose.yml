@@ -1,0 +1,30 @@
+# 로컬 개발용 PostgreSQL.
+#
+# 직접 실행하지 말고 `npm run db:up`으로 띄운다. 그 명령이 .env와 .data/postgres를 먼저 만든다.
+# (Docker가 .data/postgres를 만들면 root 소유가 되어 DB가 뜨지 않는다.)
+#
+# 이 파일은 docker-compose v1.29와 docker compose v2에서 모두 동작해야 한다.
+# 그래서 v1이 거부하는 키(name, start_interval, env_file의 required 등)는 쓰지 않는다.
+# 값은 모두 .env에서 온다. 비밀값을 이 파일에 적지 않는다(절대 규칙 2).
+
+services:
+  db:
+    image: postgres:17-alpine
+    # 컨테이너를 개발자 계정으로 실행한다. 데이터 파일 소유자가 개발자가 되어 sudo 없이 지울 수 있다.
+    user: "${HOST_UID:?.env에 값이 없습니다. npm run db:up 으로 띄우거나 .env.example을 보고 추가하세요}:${HOST_GID:?.env에 값이 없습니다. npm run db:up 으로 띄우거나 .env.example을 보고 추가하세요}"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?.env에 값이 없습니다. npm run db:up 으로 띄우거나 .env.example을 보고 추가하세요}"
+      POSTGRES_DB: "${POSTGRES_DB:?.env에 값이 없습니다. npm run db:up 으로 띄우거나 .env.example을 보고 추가하세요}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?.env에 값이 없습니다. npm run db:up 으로 띄우거나 .env.example을 보고 추가하세요}"
+    ports:
+      # 이 PC에서만 접속할 수 있게 127.0.0.1에만 연다.
+      - "127.0.0.1:${POSTGRES_PORT:?.env에 값이 없습니다. npm run db:up 으로 띄우거나 .env.example을 보고 추가하세요}:5432"
+    volumes:
+      # 절대 규칙 7: 데이터는 저장소 폴더 안(.data/, git 제외)에 둔다.
+      - ./.data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1: 초기화 중에 잠깐 뜨는 임시 서버(유닉스 소켓 전용)를 준비 완료로 착각하지 않게 한다.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

@@ -1,0 +1,20 @@
+# 프로토타입 HTTPS 프록시. 앱(docker-compose.prod.yml)과 별도 프로젝트로 띄운다.
+#   docker compose -p crm_proxy -f infra/prototype/docker-compose.caddy.yml up -d --build
+# host 네트워크: 127.0.0.1:3100(앱)으로 넘기고, 인증서 발급 때 서버 역할 자격 증명(IMDS)을 읽는다.
+services:
+  caddy:
+    build:
+      context: .
+      dockerfile: caddy.Dockerfile
+    image: crm_proxy_caddy:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  caddy_data:
+  caddy_config:

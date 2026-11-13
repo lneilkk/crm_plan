@@ -1,0 +1,139 @@
+# CI — PR마다, 그리고 main에 푸시될 때마다 자동으로 실행한다. (T0-4)
+#
+#   check        lint · 타입 검사 · 단위 테스트
+#   integration  DB가 필요한 통합 테스트 (PostgreSQL을 Docker Compose로 띄운다)
+#   secrets      비밀정보 스캔(gitleaks) — 키·토큰·비밀번호가 들어간 커밋이 있으면 실패
+#
+# 이 파일에는 비밀번호·키를 적지 않는다(절대 규칙 2). 통합 테스트용 DB 비밀번호와 암호화 키는
+# 실행할 때마다 `npm run setup:env`가 무작위로 만들고, 러너와 함께 사라진다.
+#
+# 액션은 태그가 아니라 커밋 SHA로 고정한다(태그는 나중에 다른 커밋을 가리키게 바뀔 수 있다).
+# 버전을 올릴 때는 SHA와 옆의 버전 주석을 같이 바꾼다.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 최소 권한: 저장소 코드를 읽기만 한다.
+permissions:
+  contents: read
+
+# 같은 PR에 새 커밋이 올라오면 진행 중이던 이전 실행을 취소한다.
+# main 푸시는 실행마다 그룹이 달라서 서로 취소하지 않는다(푸시한 커밋을 빠짐없이 스캔해야 한다).
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint · 타입 검사 · 단위 테스트
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: 코드 내려받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Node.js 22 준비 (npm 캐시 사용)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 의존성 설치 (package-lock.json 그대로)
+        run: npm ci
+
+      # prisma.config.ts가 DATABASE_URL을 읽으므로 .env를 먼저 만든다(무작위 로컬 값, DB에는 접속하지 않는다).
+      - name: .env 생성 (무작위 로컬 비밀값)
+        run: npm run setup:env
+
+      # Prisma 클라이언트(src/generated/)는 git에 없으므로 lint·타입 검사 전에 만든다.
+      - name: Prisma 클라이언트 생성
+        run: npm run db:generate
+
+      - name: lint
+        run: npm run lint
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 단위 테스트
+        run: npm test
+
+  integration:
+    name: 통합 테스트 (DB)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 코드 내려받기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Node.js 22 준비 (npm 캐시 사용)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 의존성 설치 (package-lock.json 그대로)
+        run: npm ci
+
+      # DB 비밀번호와 암호화 키를 이 실행에서만 쓸 무작위 값으로 만든다(.env, git 제외).
+      - name: .env 생성 (무작위 로컬 비밀값)
+        run: npm run setup:env
+
+      - name: Prisma 클라이언트 생성
+        run: npm run db:generate
+
+      - name: PostgreSQL 실행 (준비될 때까지 대기)
+        run: npm run db:up
+
+      - name: 마이그레이션 적용
+        run: npm run db:deploy
+
+      - name: 통합 테스트
+        run: npm run test:integration
+
+  secrets:
+    name: 비밀정보 스캔 (gitleaks)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # 중간 커밋까지 검사하려면 전체 이력이 필요하다(기본값인 얕은 복제로는 범위를 계산할 수 없다).
+      - name: 코드 내려받기 (전체 이력)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 이 러너에서 스캔이 가짜 키를 실제로 잡는지 먼저 확인한다(스캔이 조용히 통과해 버리는 일을 막는다).
+      - name: 스캔 자체 점검
+        run: bash scripts/ci/secret-scan.selftest.sh
+
+      # 주의: PR에서는 스캔 스크립트와 .gitleaks.toml도 그 PR의 것을 쓴다. PR이 허용 목록을 넓혀 스스로 통과할 수 있으므로
+      # .github/**, .gitleaks.toml, .gitleaksignore, scripts/ci/** 변경은 CODEOWNERS 리뷰로 막아야 한다(pull_request_target은 쓰지 않는다).
+      # gitleaks 버전(이미지 다이제스트)은 scripts/ci/secret-scan.sh에 고정되어 있고, 로컬에서도 같은 스크립트를 쓴다.
+      # 이벤트 값은 스크립트에 바로 끼워 넣지 않고 환경변수로 넘긴다.
+      - name: gitleaks 스캔
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # PR에 들어 있는 모든 커밋. 나중 커밋에서 지운 키도 잡힌다.
+            bash scripts/ci/secret-scan.sh "$PR_BASE_SHA..$PR_HEAD_SHA"
+          elif git cat-file -e "$PUSH_BEFORE_SHA^{commit}" 2>/dev/null; then
+            # main에 이번에 푸시된 커밋.
+            bash scripts/ci/secret-scan.sh "$PUSH_BEFORE_SHA..$PUSH_AFTER_SHA"
+          else
+            # 첫 푸시나 강제 푸시라서 이전 커밋을 알 수 없다: 푸시된 커밋까지의 전체 이력을 스캔한다.
+            bash scripts/ci/secret-scan.sh "$PUSH_AFTER_SHA"
+          fi

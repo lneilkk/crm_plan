@@ -1,0 +1,440 @@
+// 치과 CRM 데이터 모델 — 기획서 6장(데이터 모델 초안), 4-1(예약 상태값), 4-3(입력 규칙), 10장(보안 설계) 기준.
+//
+// 규칙
+// - 테이블·컬럼·enum 이름은 snake_case(@@map, @map), 코드에서 쓰는 이름은 camelCase.
+// - 기본 키는 UUID v7(시간순 정렬), 시각은 모두 timestamptz(3)(UTC 저장, 한국 시간 변환은 src/lib/time/kst.ts).
+// - enum 값은 src/lib/domain/*.ts의 상수 배열과 같아야 한다(src/server/db-enums.test.ts가 검사).
+// - 절대 규칙 3: 주민등록번호, 진료기록(진단·처방) 컬럼을 만들지 않는다.
+// - 절대 규칙 5: visit_status_log, audit_log는 추가만 한다(수정·삭제 코드 없음, updated_at 없음).
+// - Prisma가 표현하지 못하는 제약(체어 시간 중복 금지, CHECK)은 마이그레이션 SQL에 직접 적었다.
+//   (prisma/migrations/*_init/migration.sql 끝부분)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// 접속 주소는 prisma.config.ts에 있다(Prisma 7).
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// enum — 값은 src/lib/domain/*.ts와 같아야 한다
+// ---------------------------------------------------------------------------
+
+/// 직원 역할 (src/lib/domain/staff.ts STAFF_ROLES)
+enum StaffRole {
+  FRONT // 프론트
+  COUNSELOR // 상담
+  DOCTOR // 의사
+  NURSE // 간호 (F-11)
+  ADMIN // 관리자
+
+  @@map("staff_role")
+}
+
+/// 성별 (src/lib/domain/patient.ts GENDERS)
+enum Gender {
+  MALE
+  FEMALE
+
+  @@map("gender")
+}
+
+/// 신규/재진 (src/lib/domain/patient.ts VISIT_TYPES)
+enum VisitType {
+  NEW
+  RETURNING
+
+  @@map("visit_type")
+}
+
+/// 유입경로 (src/lib/domain/patient.ts REFERRAL_SOURCES)
+enum ReferralSource {
+  PHONE
+  WEBSITE
+  PLATFORM
+  REFERRAL
+  OTHER
+
+  @@map("referral_source")
+}
+
+/// 동의 종류 (src/lib/domain/patient.ts CONSENT_TYPES)
+enum ConsentType {
+  PRIVACY // 개인정보 수집·이용
+  SENSITIVE // 민감정보 처리
+  MARKETING // 마케팅 수신
+
+  @@map("consent_type")
+}
+
+/// 예약 상태 (기획서 4-1, src/lib/domain/appointment.ts APPOINTMENT_STATUSES). '지각내원'은 저장하지 않는다.
+enum AppointmentStatus {
+  BOOKED // 예약확정
+  CONFIRMED // 확인완료
+  ARRIVED // 내원
+  NO_SHOW // 노쇼
+  CANCELED_SAME_DAY // 당일취소
+  CANCELED_ADVANCE // 사전취소
+  RESCHEDULED // 예약변경
+  IN_TREATMENT // 진료중
+  PAID // 수납완료
+  LEFT // 귀가
+
+  @@map("appointment_status")
+}
+
+/// 예약 채널 (src/lib/domain/appointment.ts APPOINTMENT_CHANNELS)
+enum AppointmentChannel {
+  PHONE
+  WEBSITE
+  PLATFORM
+  ONSITE
+  WALK_IN
+
+  @@map("appointment_channel")
+}
+
+/// 노쇼·당일취소 사유 코드 (기획서 4-3, src/lib/domain/appointment.ts VISIT_REASON_CODES)
+enum VisitReasonCode {
+  NO_CONTACT // 연락두절
+  PERSONAL // 개인사정
+  OTHER_CLINIC // 타병원
+  OTHER // 기타
+
+  @@map("visit_reason_code")
+}
+
+/// 상담 결과 — 예약 전환 여부 (아직 src/lib/domain에 상수 배열이 없다)
+enum ConsultationResult {
+  PENDING // 미정
+  BOOKED // 예약 전환
+  NOT_BOOKED // 미전환
+
+  @@map("consultation_result")
+}
+
+/// 감사 로그 결과 (아직 src/lib/domain에 상수 배열이 없다)
+enum AuditResult {
+  SUCCESS // 성공
+  DENIED // 권한 없음
+  FAILED // 실패
+
+  @@map("audit_result")
+}
+
+// ---------------------------------------------------------------------------
+// 고객
+// ---------------------------------------------------------------------------
+
+/// 고객 (기획서 6장 patient). 휴대폰·생년월일은 암호문만 저장한다(기획서 10장, T1-2).
+model Patient {
+  id             String          @id @default(uuid(7)) @db.Uuid // id
+  name           String // 이름 — 검색해야 하므로 평문
+  phoneEnc       String          @map("phone_enc") // 휴대폰(암호화) — AES-256-GCM 암호문
+  phoneHash      String          @map("phone_hash") // 휴대폰 검색용 해시 — 정규화한 전체 번호의 HMAC. 가족이 같은 번호를 쓸 수 있어 unique 아님
+  phoneLast4Hash String          @map("phone_last4_hash") // 휴대폰 뒷 4자리 검색용 해시 — HMAC
+  birthDateEnc   String?         @map("birth_date_enc") // 생년월일(암호화)
+  gender         Gender? // 성별
+  visitType      VisitType       @default(NEW) @map("visit_type") // 신규/재진
+  referralSource ReferralSource? @map("referral_source") // 유입경로
+  tags           String[]        @default([]) // 태그
+  noShowCount    Int             @default(0) @map("no_show_count") // 노쇼 누적 횟수 — 상태 변경 트랜잭션이 갱신하는 캐시
+  dentwebChartNo String?         @unique @map("dentweb_chart_no") // 덴트웹 차트번호 (기획서 8장 1단계 매칭용)
+  memo           String? // 메모
+  createdById    String?         @map("created_by_id") @db.Uuid // 등록한 직원
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  createdBy     Staff?         @relation("PatientCreatedBy", fields: [createdById], references: [id])
+  consents      Consent[]
+  appointments  Appointment[]
+  consultations Consultation[]
+
+  @@index([name])
+  @@index([phoneHash])
+  @@index([phoneLast4Hash])
+  @@map("patient")
+}
+
+/// 동의 (기획서 6장 consent). 이력형: 행을 고치지 않고, 철회도 새 행으로 추가한다.
+model Consent {
+  id           String      @id @default(uuid(7)) @db.Uuid // id
+  patientId    String      @map("patient_id") @db.Uuid // patient_id
+  type         ConsentType // 동의 종류(개인정보/민감정보/마케팅)
+  agreed       Boolean // 동의 여부
+  agreedAt     DateTime?   @map("agreed_at") @db.Timestamptz(3) // 동의 일시
+  withdrawnAt  DateTime?   @map("withdrawn_at") @db.Timestamptz(3) // 철회 일시
+  recordedById String?     @map("recorded_by_id") @db.Uuid // 기록한 직원
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3) // 기록 시각
+
+  // 동의는 이력 테이블이라 행을 고치지 않는다. SET NULL·CASCADE 같은 외래 키 동작도 이력 행을
+  // UPDATE하므로 삭제·수정 모두 RESTRICT로 막는다 (직원은 삭제하지 않고 is_active로 비활성화한다).
+  patient    Patient @relation(fields: [patientId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy Staff?  @relation("ConsentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([patientId, type, createdAt])
+  @@map("consent")
+}
+
+// ---------------------------------------------------------------------------
+// 직원·세션
+// ---------------------------------------------------------------------------
+
+/// 직무별 권한 (확장 계획 S-2b). 기획서 6장에 없음 — 직무별 권한을 관리자가 편집할 수 있게 DB에 둔다.
+/// 첫 설치 값은 마이그레이션이 한 번만 넣는다(src/lib/auth/permissions.ts INITIAL_JOB_PERMISSIONS). 행이 있으면 그 직무가 그 권한을 가진다.
+model JobPermission {
+  id         String    @id @default(uuid(7)) @db.Uuid // id
+  role       StaffRole // 직무
+  permission String // 권한 이름 (모르는 이름은 무시된다)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3) // 켠 시각
+
+  @@unique([role, permission])
+  @@map("job_permission")
+}
+
+/// 직원 (기획서 6장 staff). 권한 체크 기준.
+model Staff {
+  id               String    @id @default(uuid(7)) @db.Uuid // id
+  loginId          String    @unique @map("login_id") // 로그인 아이디
+  name             String // 이름
+  role             StaffRole // 직무(프론트/상담/의사/간호/관리자). 부서는 직무에서 정해진다 (src/lib/auth/permissions.ts)
+  extraPermissions String[]  @default([]) @map("extra_permissions") // 개인 추가 권한(권한 이름). 직무 기본 권한에 더해진다 (확장 계획 S-2)
+  branch           String    @default("본점") // 지점
+  passwordHash     String    @map("password_hash") // 비밀번호 해시(argon2) — 원문은 저장하지 않는다
+  failedLoginCount Int       @default(0) @map("failed_login_count") // 연속 로그인 실패 횟수 (기획서 10장 계정 잠금)
+  lockedAt         DateTime? @map("locked_at") @db.Timestamptz(3) // 계정 잠금 시각
+  isActive         Boolean   @default(true) @map("is_active") // 재직 여부 — 퇴사자는 삭제하지 않고 비활성화
+  lastLoginAt      DateTime? @map("last_login_at") @db.Timestamptz(3) // 마지막 로그인 시각
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  sessions                Session[]
+  patientsCreated         Patient[]                @relation("PatientCreatedBy")
+  consentsRecorded        Consent[]                @relation("ConsentRecordedBy")
+  appointmentsAsDoctor    Appointment[]            @relation("AppointmentDoctor")
+  appointmentsAsCounselor Appointment[]            @relation("AppointmentCounselor")
+  appointmentsCreated     Appointment[]            @relation("AppointmentCreatedBy")
+  visitStatusLogs         VisitStatusLog[]
+  consultations           Consultation[]
+  clinicSettingsUpdated   ClinicSetting[]
+  surgeryParticipations   AppointmentParticipant[] @relation("ParticipantStaff")
+  surgeryNotesWritten     SurgeryNote[]            @relation("SurgeryNoteAuthor")
+
+  @@map("staff")
+}
+
+/// 로그인 세션 (서버 세션). 쿠키에는 무작위 토큰 원문, DB에는 그 SHA-256만 둔다.
+model Session {
+  id         String    @id @default(uuid(7)) @db.Uuid // id
+  tokenHash  String    @unique @map("token_hash") // 세션 토큰의 SHA-256 — 원문은 쿠키에만 있다
+  staffId    String    @map("staff_id") @db.Uuid // 로그인한 직원
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3) // 로그인 시각
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3) // 마지막 요청 시각 (유휴 만료 판단)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3) // 만료 시각
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3) // 로그아웃·강제 종료 시각
+  ip         String? // 접속 IP
+  userAgent  String?   @map("user_agent") // 브라우저 정보
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("session")
+}
+
+// ---------------------------------------------------------------------------
+// 예약·내원
+// ---------------------------------------------------------------------------
+
+/// 예약 (기획서 6장 appointment).
+/// 같은 체어(방)·겹치는 시간의 예약은 DB 제약 appointment_no_chair_overlap이 막는다(마이그레이션 SQL).
+/// 지각 여부는 저장하지 않고 start_at과 arrived_at의 차이로 계산한다(기획서 6장).
+model Appointment {
+  id                    String             @id @default(uuid(7)) @db.Uuid // id
+  patientId             String             @map("patient_id") @db.Uuid // patient_id
+  startAt               DateTime           @map("start_at") @db.Timestamptz(3) // 일시
+  durationMin           Int                @map("duration_min") // 소요시간(분), 5~480
+  endAt                 DateTime           @map("end_at") @db.Timestamptz(3) // 종료 시각 = start_at + duration_min. 중복 예약 제약용으로 저장
+  doctorId              String?            @map("doctor_id") @db.Uuid // 의사
+  counselorId           String?            @map("counselor_id") @db.Uuid // 상담자
+  chair                 String // 방 — clinic_setting.chairs의 체어·상담실 코드
+  treatmentItem         String             @map("treatment_item") // 예약 항목 — 예약 분류 이름이며 진료기록이 아니다
+  channel               AppointmentChannel // 예약 채널
+  status                AppointmentStatus  @default(BOOKED) // 현재 상태 — visit_status_log 최신 행의 조회 속도용 캐시
+  arrivedAt             DateTime?          @map("arrived_at") @db.Timestamptz(3) // 내원 입력 시각 — 지각 계산용 캐시
+  originalAppointmentId String?            @unique @map("original_appointment_id") @db.Uuid // 원 예약 id(변경 시)
+  memo                  String? // 메모
+  listPrice             Int?               @map("list_price") // 단가(원) — 등록·항목 변경 시점의 예약 항목 단가 (F-6). null은 그 항목 단가가 미입력이었음(S-3)
+  discountRate          Int                @default(0) @map("discount_rate") // 할인율(%) 0~100 (F-6)
+  createdById           String?            @map("created_by_id") @db.Uuid // 등록한 직원
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
+  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  patient             Patient                  @relation(fields: [patientId], references: [id])
+  doctor              Staff?                   @relation("AppointmentDoctor", fields: [doctorId], references: [id])
+  counselor           Staff?                   @relation("AppointmentCounselor", fields: [counselorId], references: [id])
+  createdBy           Staff?                   @relation("AppointmentCreatedBy", fields: [createdById], references: [id])
+  originalAppointment Appointment?             @relation("AppointmentReschedule", fields: [originalAppointmentId], references: [id])
+  rescheduledTo       Appointment?             @relation("AppointmentReschedule")
+  statusLogs          VisitStatusLog[]
+  consultation        Consultation?
+  labels              AppointmentLabelLink[]
+  participants        AppointmentParticipant[]
+  surgeryNote         SurgeryNote?
+
+  @@index([startAt])
+  @@index([patientId, startAt])
+  @@index([doctorId, startAt])
+  @@index([status, startAt])
+  @@map("appointment")
+}
+
+/// 내원 상태 이력 (기획서 6장 visit_status_log). 추가만 한다(절대 규칙 5): 수정·삭제 코드 없음.
+/// 참조하는 예약·직원이 지워지지 않도록 onDelete: Restrict.
+model VisitStatusLog {
+  id            String             @id @default(uuid(7)) @db.Uuid // id
+  appointmentId String             @map("appointment_id") @db.Uuid // appointment_id
+  fromStatus    AppointmentStatus? @map("from_status") // 이전 상태 — 예약을 만들 때 쓰는 첫 행은 null
+  toStatus      AppointmentStatus  @map("to_status") // 새 상태
+  reasonCode    VisitReasonCode?   @map("reason_code") // 사유 코드 (노쇼·당일취소)
+  staffId       String             @map("staff_id") @db.Uuid // 입력자 staff_id
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3) // 입력 시각
+  inputDevice   String?            @map("input_device") // 입력 기기
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  staff       Staff       @relation(fields: [staffId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([appointmentId, createdAt])
+  @@map("visit_status_log")
+}
+
+/// 상담 (기획서 6장 consultation). 민감정보가 들어갈 수 있다 → 별도 권한·민감정보 동의 확인 후 접근(기획서 7장).
+model Consultation {
+  id              String             @id @default(uuid(7)) @db.Uuid // id
+  patientId       String             @map("patient_id") @db.Uuid // patient_id
+  counselorId     String             @map("counselor_id") @db.Uuid // 상담자
+  content         String // 내용
+  interestedItems String[]           @default([]) @map("interested_items") // 관심 항목
+  result          ConsultationResult @default(PENDING) // 결과(예약 전환 여부)
+  outcome         String? // 상담 결과 분류 이름 (F-10, clinic_setting.consult_outcomes) — 예: 예진완료·수술예약·일반진료
+  isNewPatient    Boolean            @default(true) @map("is_new_patient") // 상담 시점의 신환 여부 (F-10 통계: 초진상담·구환추가상담)
+  appointmentId   String?            @unique @map("appointment_id") @db.Uuid // 전환된 예약
+  consultedAt     DateTime           @default(now()) @map("consulted_at") @db.Timestamptz(3) // 상담 일시
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  counselor   Staff        @relation(fields: [counselorId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([patientId, consultedAt])
+  @@index([counselorId, consultedAt])
+  @@map("consultation")
+}
+
+// ---------------------------------------------------------------------------
+// 설정·감사
+// ---------------------------------------------------------------------------
+
+/// 병원 설정 (기획서 6장 "병원 설정 테이블에 허용 지각 시간, 노쇼 유예 시간을 둔다"). 항상 1행(id = 1, CHECK 제약).
+/// JSON 형태는 src/lib/domain/clinic.ts의 타입을 따른다.
+model ClinicSetting {
+  id                Int      @id @default(1) // 항상 1
+  lateToleranceMin  Int      @default(15) @map("late_tolerance_min") // 허용 지각 시간(분)
+  noShowGraceMin    Int      @default(30) @map("no_show_grace_min") // 노쇼 유예 시간(분)
+  businessHours     Json     @map("business_hours") @db.JsonB // 진료시간 — BusinessHours
+  chairs            Json     @db.JsonB // 체어·상담실 목록 — Chair[]
+  treatmentItems    Json     @map("treatment_items") @db.JsonB // 예약 항목 목록 — string[]
+  treatmentItemMeta Json?    @map("treatment_item_meta") @db.JsonB // 예약 항목별 구분(고가·일반)·단가 — TreatmentItemMeta (F-5·F-6). 없으면 기본값
+  consultOutcomes   Json?    @map("consult_outcomes") @db.JsonB // 상담 결과 분류 — ConsultOutcome[] (F-10). 없으면 기본값
+  departmentHomes   Json     @default("{\"FRONT\": \"/board\", \"CONSULT\": \"/consult\", \"CLINICAL\": \"/calendar\", \"OPERATIONS\": \"/stats\"}") @map("department_homes") @db.JsonB // 부서별 첫 화면(확장 계획 S-4). 기본값은 첫 설치 값(INITIAL_DEPARTMENT_HOMES), 이후 관리자가 편집
+  statusStyles      Json?    @map("status_styles") @db.JsonB // 예약 상태별 캘린더 표시 이름·색 — StatusStyles (F-2). 없으면 기본값
+  updatedById       String?  @map("updated_by_id") @db.Uuid // 마지막으로 바꾼 직원
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  updatedBy Staff? @relation(fields: [updatedById], references: [id])
+
+  @@map("clinic_setting")
+}
+
+/// 감사 로그 (기획서 10장 접근 기록). 추가만 한다(절대 규칙 5).
+///
+/// 외래 키를 일부러 두지 않는다(staff_id, patient_id는 그냥 uuid 컬럼):
+/// - 가리키는 직원·환자 행에 무슨 일이 생겨도(삭제·파기) 로그는 그대로 남아야 한다.
+/// - ON DELETE SET NULL 같은 FK 동작은 추가 전용 테이블에 대한 UPDATE가 된다.
+/// detail에는 개수·코드만 넣고 이름·전화번호 같은 원문은 넣지 않는다(절대 규칙 6).
+model AuditLog {
+  id        String      @id @default(uuid(7)) @db.Uuid // id
+  staffId   String?     @map("staff_id") @db.Uuid // 계정 — 로그인 실패처럼 계정을 모를 때 null
+  action    String // 수행 업무 코드
+  patientId String?     @map("patient_id") @db.Uuid // 대상 환자
+  ip        String? // 접속 IP
+  userAgent String?     @map("user_agent") // 브라우저 정보
+  result    AuditResult @default(SUCCESS) // 결과
+  detail    Json?       @db.JsonB // 부가 정보 — 개수·코드만
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3) // 시각
+
+  @@index([createdAt])
+  @@index([staffId, createdAt])
+  @@index([patientId, createdAt])
+  @@map("audit_log")
+}
+
+/// 예약 색 라벨 목록 (F-2) — 관리자가 캘린더 [편집] 탭에서 관리. 금액·고객 분류 등 병원이 정하는 이름표이며
+/// 환자 정보·진료기록을 넣지 않는다. 칸 색은 예약에 붙은 라벨 중 sort_order가 가장 작은 라벨의 색.
+model AppointmentLabel {
+  id        String   @id @default(uuid(7)) @db.Uuid // id
+  name      String   @unique // 라벨 이름 (예: 초진, 200, vip)
+  color     String // 색 — #RRGGBB
+  sortOrder Int      @map("sort_order") // 표시·우선 순서 (작을수록 위, 칸 색 우선)
+  isActive  Boolean  @default(true) @map("is_active") // 숨긴 라벨은 새로 고를 수 없고, 이미 붙은 예약에는 그대로 보인다
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  appointments AppointmentLabelLink[]
+
+  @@map("appointment_label")
+}
+
+/// 예약 ↔ 라벨 연결 (F-2)
+model AppointmentLabelLink {
+  appointmentId String   @map("appointment_id") @db.Uuid // 예약
+  labelId       String   @map("label_id") @db.Uuid // 라벨
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3) // 붙인 시각
+
+  appointment Appointment      @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  label       AppointmentLabel @relation(fields: [labelId], references: [id], onDelete: Restrict)
+
+  @@id([appointmentId, labelId])
+  @@index([labelId])
+  @@map("appointment_label_link")
+}
+
+/// 수술 참여 직원 (F-11) — 예약에 들어간 간호·의사 등. 예약을 볼 수 있는 직원은 명단을 본다.
+model AppointmentParticipant {
+  appointmentId String   @map("appointment_id") @db.Uuid // 예약
+  staffId       String   @map("staff_id") @db.Uuid // 참여 직원
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3) // 기록 시각
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  staff       Staff       @relation("ParticipantStaff", fields: [staffId], references: [id], onDelete: Restrict)
+
+  @@id([appointmentId, staffId])
+  @@index([staffId])
+  @@map("appointment_participant")
+}
+
+/// 수술 메모 (F-11) — 수술 중 실수 등 직원 관련 메모. 원장·관리자만 쓰고 본다(조회는 감사 로그). 진단·처방은 적지 않는다(절대 규칙 3).
+model SurgeryNote {
+  appointmentId String   @id @map("appointment_id") @db.Uuid // 예약 (예약당 하나)
+  content       String // 메모
+  updatedById   String   @map("updated_by_id") @db.Uuid // 마지막으로 쓴 직원
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  updatedBy   Staff       @relation("SurgeryNoteAuthor", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("surgery_note")
+}
