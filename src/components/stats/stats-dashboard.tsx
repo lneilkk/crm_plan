@@ -3,7 +3,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
-import { can } from "@/lib/auth/permissions";
 import { APPOINTMENT_CHANNEL_LABEL } from "@/lib/domain/appointment";
 import { fillBucketGaps, formatRate, type StatsUnit, type VisitStats } from "@/lib/stats/visit-stats";
 import { formatKstDateLabel, kstDateKey } from "@/lib/time/kst";
@@ -42,7 +41,7 @@ export function StatsDashboard() {
     if (me.error instanceof ApiRequestError && me.error.status === 403) return <NoPermission />;
     return <LoadError message={me.error instanceof ApiRequestError ? me.error.message : undefined} onRetry={() => me.refetch()} />;
   }
-  if (!can(me.data.role, "stats.read")) return <NoPermission />;
+  if (!me.data.permissions.includes("stats.read")) return <NoPermission />;
   return <StatsTabs />;
 }
 

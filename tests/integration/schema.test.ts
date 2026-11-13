@@ -49,6 +49,7 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "login_id",
     "name",
     "role",
+    "extra_permissions", // 개인 추가 권한 (확장 계획 S-2)
     "branch",
     "password_hash",
     "failed_login_count",

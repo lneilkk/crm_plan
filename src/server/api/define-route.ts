@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import type { AuditResult } from "@/generated/prisma/client";
 import { INPUT_DEVICE_HEADER, normalizeInputDevice } from "@/lib/auth/device-id";
-import { can, type Permission } from "@/lib/auth/permissions";
+import { hasPermission, type Permission } from "@/lib/auth/permissions";
 import { getActiveSession, type SessionStaff } from "@/server/auth/session";
 import { db, type DbClient } from "@/server/db";
 import { errorFields, log } from "@/server/log";
@@ -121,7 +121,7 @@ export function defineRoute<
         if (!session) throw new ApiError(401, "UNAUTHENTICATED", "로그인이 필요합니다. 다시 로그인하세요.");
         staff = session.staff;
         sessionId = session.sessionId;
-        if (definition.permission !== "authenticated" && !can(staff.role, definition.permission)) {
+        if (definition.permission !== "authenticated" && !hasPermission(staff, definition.permission)) {
           await writeAudit({
             staffId: staff.id,
             action: definition.audit === "none" ? "API_ACCESS" : definition.audit,

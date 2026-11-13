@@ -10,7 +10,7 @@
  * - 모든 요청에 이 브라우저의 기기 id를 x-input-device로 붙인다(device-id.ts). 서버는 상태 이력에 입력 기기로 남긴다.
  */
 import { getDeviceId, INPUT_DEVICE_HEADER } from "./device-id";
-import type { NavSectionKey } from "./permissions";
+import type { Department, NavSectionKey, Permission } from "./permissions";
 import type { StaffRole } from "@/lib/domain/staff";
 
 export class ApiRequestError extends Error {
@@ -63,8 +63,12 @@ export async function apiFetch<T = unknown>(url: string, init: { method?: string
 export type Me = {
   id: string;
   name: string;
+  /** 직무 (표시용). 버튼·영역을 숨길 때는 permissions만 쓴다 */
   role: StaffRole;
+  department: Department;
   loginId: string;
+  /** 이 사람의 권한 = 직무 기본값 ∪ 개인 추가 권한 (서버가 계산) */
+  permissions: Permission[];
   navSections: NavSectionKey[];
 };
 

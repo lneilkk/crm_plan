@@ -1,37 +1,38 @@
 /**
- * 역할별 권한 — 기획서 10장(업무별 최소 권한), T2-4.
+ * 권한·부서·직무 — 기획서 10장(업무별 최소 권한), T2-4, 확장 계획 S-2.
  *
- * 서버·브라우저 공용. API는 역할 목록이 아니라 권한 이름으로 선언한다(defineRoute의 permission).
- * 역할에 권한을 더하거나 뺄 때는 이 표만 고친다. permissions.test.ts가 칸마다 기대값을 검사한다.
+ * 서버·브라우저 공용. 권한은 이 파일 한 곳에만 정의한다.
+ * - 권한: 작은 단위의 능력. API는 역할이 아니라 권한 이름으로 선언한다(defineRoute의 permission).
+ * - 직무: staff.role 값(프론트·상담·의사·간호·관리자). 직무마다 기본 권한이 있다(JOB_PERMISSIONS).
+ * - 부서: 직무의 묶음(프론트·상담·진료·운영). 직무에서 정해지므로 따로 저장하지 않는다.
+ *   부서별 첫 화면·메뉴는 S-4에서 붙인다.
+ * - 개인 추가 권한: staff.extra_permissions. 직무 기본값에 더해진다. 빼는 기능은 없다.
+ *
+ * 한 사람의 권한 = 직무 기본값 ∪ 개인 추가 권한(아는 이름만). permissions.test.ts가 S-2 전 표와 같음을 검사한다.
  */
 import { STAFF_ROLES, type StaffRole } from "@/lib/domain/staff";
 
+/** 권한 이름과 화면에 보일 설명 */
 export const PERMISSIONS = {
-  "patient.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
-  "patient.write": ["FRONT", "COUNSELOR", "ADMIN"],
-  "appointment.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
-  "appointment.write": ["FRONT", "COUNSELOR", "ADMIN"],
-  /** 내원 상태 변경 */
-  "visit.write": ["FRONT", "COUNSELOR", "NURSE", "ADMIN"],
-  /** 통계 — 원장·관리자 */
-  "stats.read": ["DOCTOR", "ADMIN"],
-  "settings.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
-  "settings.write": ["ADMIN"],
-  /** 드롭다운용 직원 이름·역할만 */
-  "staff.read": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
-  /** 계정 잠금 해제 등 직원 계정 관리 */
-  "staff.manage": ["ADMIN"],
-  /** 상담 기록 보기(내용 포함) — 상담·원장·관리자. 프론트·간호는 상담 내용을 볼 수 없다 (T6-1) */
-  "consult.read": ["COUNSELOR", "DOCTOR", "ADMIN"],
-  /** 상담 등록·수정·수술예약 전환 (F-10) */
-  "consult.write": ["COUNSELOR", "ADMIN"],
-  /** 수술 참여 직원 기록 (F-11) */
-  "surgery.record": ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"],
-  /** 수술 메모(실수 등 직원 관련) 보기·쓰기 — 원장·관리자만 (F-11) */
-  "surgery.note": ["DOCTOR", "ADMIN"],
-  /** 기존 CRM 데이터 가져오기 (F-7) — 관리자만 */
-  "data.import": ["ADMIN"],
-} as const satisfies Record<string, readonly StaffRole[]>;
+  "patient.read": "고객 보기",
+  "patient.write": "고객 등록·수정",
+  "appointment.read": "예약·내원 보드 보기",
+  "appointment.write": "예약 만들기·옮기기·고치기",
+  "visit.write": "내원 상태 변경",
+  "stats.read": "통계·실적 보기",
+  "settings.read": "병원 설정 읽기",
+  "settings.write": "병원 설정 바꾸기",
+  /** 드롭다운용 직원 이름·직무만 */
+  "staff.read": "직원 목록 보기",
+  "staff.manage": "직원 계정 관리",
+  /** 상담 내용 포함. 프론트·간호는 상담 내용을 볼 수 없다 (T6-1) */
+  "consult.read": "상담 보기",
+  "consult.write": "상담 쓰기·수술예약 전환",
+  "surgery.record": "수술 참여 직원 기록",
+  /** 실수 등 직원 관련 메모 (F-11) */
+  "surgery.note": "수술 메모 보기·쓰기",
+  "data.import": "기존 CRM 가져오기",
+} as const satisfies Record<string, string>;
 
 export type Permission = keyof typeof PERMISSIONS;
 
@@ -41,10 +42,64 @@ export function isPermission(value: string): value is Permission {
   return Object.hasOwn(PERMISSIONS, value);
 }
 
-/** 역할이 권한을 가졌는지. 표에 없는 권한·역할은 거부한다(기본 거부). */
-export function can(role: StaffRole, permission: Permission): boolean {
-  if (!STAFF_ROLES.includes(role) || !isPermission(permission)) return false;
-  return (PERMISSIONS[permission] as readonly StaffRole[]).includes(role);
+/** 부서 → 속한 직무 */
+export const DEPARTMENTS = {
+  FRONT: { label: "프론트", jobs: ["FRONT"] },
+  CONSULT: { label: "상담", jobs: ["COUNSELOR"] },
+  CLINICAL: { label: "진료", jobs: ["DOCTOR", "NURSE"] },
+  OPERATIONS: { label: "운영", jobs: ["ADMIN"] },
+} as const satisfies Record<string, { label: string; jobs: readonly StaffRole[] }>;
+
+export type Department = keyof typeof DEPARTMENTS;
+
+export const DEPARTMENT_NAMES = Object.keys(DEPARTMENTS) as Department[];
+
+export function departmentOf(job: StaffRole): Department {
+  const found = DEPARTMENT_NAMES.find((d) => (DEPARTMENTS[d].jobs as readonly StaffRole[]).includes(job));
+  if (!found) throw new Error("부서가 없는 직무");
+  return found;
+}
+
+const EVERYONE_READS = ["patient.read", "appointment.read", "settings.read", "staff.read", "surgery.record"] as const;
+
+/** 직무별 기본 권한 */
+export const JOB_PERMISSIONS = {
+  FRONT: [...EVERYONE_READS, "patient.write", "appointment.write", "visit.write"],
+  COUNSELOR: [...EVERYONE_READS, "patient.write", "appointment.write", "visit.write", "consult.read", "consult.write"],
+  /** 원장의 통계·상담 보기는 개인 추가 권한으로 준다(사용자 결정 2026-11-13) */
+  DOCTOR: [...EVERYONE_READS, "surgery.note"],
+  NURSE: [...EVERYONE_READS, "visit.write"],
+  ADMIN: PERMISSION_NAMES,
+} as const satisfies Record<StaffRole, readonly Permission[]>;
+
+/**
+ * S-2 변환 마이그레이션(20261113000000_staff_extra_permissions)이 기존 계정에 준 추가 권한.
+ * S-2 전에는 의사 역할이 통계·상담 보기를 가졌으므로, 그때 있던 의사 계정에는 그대로 남긴다.
+ * 마이그레이션 SQL과 같아야 한다(tests/integration/staff-access.test.ts가 SQL을 실제로 돌려 확인).
+ * 시드도 이 값을 쓴다.
+ */
+export const LEGACY_ROLE_EXTRAS = {
+  FRONT: [],
+  COUNSELOR: [],
+  DOCTOR: ["stats.read", "consult.read"],
+  NURSE: [],
+  ADMIN: [],
+} as const satisfies Record<StaffRole, readonly Permission[]>;
+
+/** 권한 계산에 필요한 직원 정보 */
+export type StaffAccess = { role: StaffRole; extraPermissions: readonly string[] };
+
+/** 한 사람의 권한 (권한 목록 순서, 겹침 없음). 모르는 직무는 아무 권한도 없다(기본 거부). */
+export function permissionsOf(access: StaffAccess): Permission[] {
+  if (!STAFF_ROLES.includes(access.role)) return [];
+  const granted = new Set<string>([...JOB_PERMISSIONS[access.role], ...access.extraPermissions]);
+  return PERMISSION_NAMES.filter((permission) => granted.has(permission));
+}
+
+/** 그 사람이 권한을 가졌는지. 표에 없는 권한·직무는 거부한다(기본 거부). */
+export function hasPermission(access: StaffAccess, permission: Permission): boolean {
+  if (!isPermission(permission)) return false;
+  return permissionsOf(access).includes(permission);
 }
 
 /** 상단 메뉴 구역. 화면을 숨기는 것은 편의일 뿐이고, 실제 차단은 API의 권한 검사가 한다. */
@@ -59,7 +114,8 @@ export const NAV_SECTIONS = [
 
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];
 
-/** 역할이 볼 수 있는 메뉴 구역 키 (NAV_SECTIONS 순서) */
-export function navSectionsFor(role: StaffRole): NavSectionKey[] {
-  return NAV_SECTIONS.filter((section) => can(role, section.permission)).map((section) => section.key);
+/** 그 사람이 볼 수 있는 메뉴 구역 키 (NAV_SECTIONS 순서) */
+export function navSectionsFor(access: StaffAccess): NavSectionKey[] {
+  const granted = permissionsOf(access);
+  return NAV_SECTIONS.filter((section) => granted.includes(section.permission)).map((section) => section.key);
 }

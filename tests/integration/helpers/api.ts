@@ -9,6 +9,7 @@
  * - callRoute의 요청은 http://localhost 로 가고, 같은 출처의 Origin을 붙인다(CSRF 검사 통과).
  *   다른 출처를 시험하려면 headers로 Origin을 덮어쓴다.
  */
+import { LEGACY_ROLE_EXTRAS } from "@/lib/auth/permissions";
 import type { StaffRole } from "@/lib/domain/staff";
 import type { RouteHandler } from "@/server/api/define-route";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
@@ -17,8 +18,12 @@ import { createStaff } from "./index";
 
 export const TEST_ORIGIN = "http://localhost";
 
+/**
+ * 그 직무의 직원을 만들고 세션을 연다. 추가 권한은 S-2 변환으로 기존 계정이 받은 값(LEGACY_ROLE_EXTRAS)이 기본이라,
+ * loginAs("DOCTOR")는 S-2 전과 같은 권한(원장)을 가진다. 추가 권한 없는 의사는 overrides로 extraPermissions: []를 준다.
+ */
 export async function loginAs(role: StaffRole, overrides: Parameters<typeof createStaff>[0] = {}) {
-  const staff = await createStaff({ role, ...overrides });
+  const staff = await createStaff({ role, extraPermissions: [...LEGACY_ROLE_EXTRAS[role]], ...overrides });
   const { token, sessionId } = await createSession(staff.id, { ip: null, userAgent: "vitest", now: new Date() });
   return { staff, sessionId, cookie: `${SESSION_COOKIE_NAME}=${token}` };
 }

@@ -47,7 +47,7 @@ export type LoginMeta = {
 export type LoginResult =
   | {
       ok: true;
-      staff: { id: string; name: string; role: StaffRole; loginId: string };
+      staff: { id: string; name: string; role: StaffRole; extraPermissions: string[]; loginId: string };
       token: string;
       expiresAt: Date;
     }
@@ -61,7 +61,7 @@ export async function login(input: LoginInput, meta: LoginMeta): Promise<LoginRe
 
   const staff = await db.staff.findUnique({
     where: { loginId: input.loginId },
-    select: { id: true, name: true, role: true, loginId: true, passwordHash: true, isActive: true, lockedAt: true },
+    select: { id: true, name: true, role: true, extraPermissions: true, loginId: true, passwordHash: true, isActive: true, lockedAt: true },
   });
 
   if (!staff) {
@@ -97,7 +97,7 @@ export async function login(input: LoginInput, meta: LoginMeta): Promise<LoginRe
   await audit(staff.id, "SUCCESS", previousSessionRevoked ? { previousSessionRevoked } : {});
   return {
     ok: true,
-    staff: { id: staff.id, name: staff.name, role: staff.role, loginId: staff.loginId },
+    staff: { id: staff.id, name: staff.name, role: staff.role, extraPermissions: staff.extraPermissions, loginId: staff.loginId },
     token: session.token,
     expiresAt: session.expiresAt,
   };

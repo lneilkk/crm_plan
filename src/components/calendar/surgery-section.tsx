@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
-import { can } from "@/lib/auth/permissions";
+import type { Permission } from "@/lib/auth/permissions";
 import { STAFF_ROLE_LABEL, type StaffRole } from "@/lib/domain/staff";
 import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import { containsResidentRegistrationNumber, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
@@ -16,9 +16,17 @@ type StaffOption = { id: string; name: string; role: StaffRole };
  * 수술 기록 (F-11) — 참여 직원(간호·의사 등)과 수술 메모(실수 등, 원장·관리자만).
  * 메모는 따로 읽으며(조회 감사 로그), 일반 예약 응답에는 실리지 않는다.
  */
-export function SurgerySection({ data, role, onSaved }: { data: AppointmentDetail; role: StaffRole; onSaved: (message: string) => void }) {
-  const canRecord = can(role, "surgery.record");
-  const canNote = can(role, "surgery.note");
+export function SurgerySection({
+  data,
+  permissions,
+  onSaved,
+}: {
+  data: AppointmentDetail;
+  permissions: readonly Permission[];
+  onSaved: (message: string) => void;
+}) {
+  const canRecord = permissions.includes("surgery.record");
+  const canNote = permissions.includes("surgery.note");
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>(data.participants.map((p) => p.staffId));
   const staff = useQuery({

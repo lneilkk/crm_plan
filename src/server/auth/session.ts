@@ -28,6 +28,8 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 export type SessionStaff = {
   id: string;
   role: StaffRole;
+  /** 개인 추가 권한 (확장 계획 S-2). 권한 계산은 permissionsOf/hasPermission으로만 한다 */
+  extraPermissions: string[];
   name: string;
   loginId: string;
 };
@@ -103,7 +105,7 @@ export async function getActiveSession(request: Request, now: Date = new Date())
       expiresAt: true,
       revokedAt: true,
       lastSeenAt: true,
-      staff: { select: { id: true, role: true, name: true, loginId: true, isActive: true } },
+      staff: { select: { id: true, role: true, extraPermissions: true, name: true, loginId: true, isActive: true } },
     },
   });
   if (!session || !isSessionUsable(session, now)) return null;
@@ -116,8 +118,8 @@ export async function getActiveSession(request: Request, now: Date = new Date())
     });
   }
 
-  const { id, role, name, loginId } = session.staff;
-  return { sessionId: session.id, staff: { id, role, name, loginId } };
+  const { id, role, extraPermissions, name, loginId } = session.staff;
+  return { sessionId: session.id, staff: { id, role, extraPermissions, name, loginId } };
 }
 
 /** 요청을 보낸 직원. 세션이 없거나 만료·로그아웃·비활성이면 null */

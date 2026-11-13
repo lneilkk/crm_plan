@@ -39,13 +39,15 @@ npm run dev      # http://localhost:3100
 
 `npm run db:seed`가 만든다. 비밀번호는 모두 `.env`의 `SEED_STAFF_PASSWORD` 값이다(`npm run db:up`이 무작위로 만든다).
 
-| 아이디 | 역할 |
-| --- | --- |
-| `admin` | 관리자 |
-| `doctor1`, `doctor2` | 의사 |
-| `front1` | 프론트 |
-| `counselor1` | 상담 |
-| `nurse1` | 간호 |
+| 아이디 | 부서 · 직무 | 개인 추가 권한 |
+| --- | --- | --- |
+| `admin` | 운영 · 관리자 | |
+| `doctor1`, `doctor2` | 진료 · 의사 | 통계·실적 보기, 상담 보기 (원장처럼) |
+| `front1` | 프론트 · 프론트 | |
+| `counselor1` | 상담 · 상담 | |
+| `nurse1` | 진료 · 간호 | |
+
+권한은 직무 기본값에 개인 추가 권한을 더한 것이다. 표는 `src/lib/auth/permissions.ts` 한 곳에 있다.
 
 - 계정은 `.env`에 `FAKE_DATA_ALLOWED=true`가 있을 때만 만든다. 실제 운영 환경에는 이 변수를 두지 않으므로 테스트 계정이 생기지 않는다(병원 설정만 만든다).
 - 다시 실행하면 같은 아이디의 비밀번호를 현재 `SEED_STAFF_PASSWORD`로 다시 정하고, 잠금·실패 횟수를 풀고, 다시 활성화한다. 계정은 늘어나지 않는다.

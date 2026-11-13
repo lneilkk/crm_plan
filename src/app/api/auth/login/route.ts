@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { navSectionsFor } from "@/lib/auth/permissions";
+import { meOf } from "@/server/auth/me";
 import { defineRoute } from "@/server/api/define-route";
 import { ApiError } from "@/server/api/errors";
 import { login } from "@/server/auth/login";
@@ -37,7 +37,7 @@ export const POST = defineRoute({
     }
     const { staff } = result;
     return Response.json(
-      { staff: { ...staff, navSections: navSectionsFor(staff.role) } },
+      { staff: meOf(staff) },
       { headers: { "Set-Cookie": sessionCookieHeader(result.token, result.expiresAt) } },
     );
   },

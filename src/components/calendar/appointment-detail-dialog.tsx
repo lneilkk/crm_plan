@@ -22,7 +22,7 @@ import {
   kstMinutesOfDay,
 } from "@/lib/time/kst";
 import { amountAfterDiscount, isPremiumItem } from "@/lib/domain/treatment";
-import type { StaffRole } from "@/lib/domain/staff";
+import type { Permission } from "@/lib/auth/permissions";
 import { SurgerySection } from "./surgery-section";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
 import { AppointmentEditSection } from "./appointment-edit-section";
@@ -45,7 +45,7 @@ export function AppointmentDetailDialog({
   settings,
   doctors,
   canWrite,
-  role,
+  permissions,
   style,
   today,
   onClose,
@@ -59,7 +59,7 @@ export function AppointmentDetailDialog({
   doctors: DoctorOption[];
   canWrite: boolean;
   /** 보는 직원의 역할 — 수술 기록 권한(F-11) */
-  role: StaffRole;
+  permissions: readonly Permission[];
   /** 색 라벨 (F-2) */
   style: CalendarStyle;
   /** 오늘(한국 시간) */
@@ -101,7 +101,7 @@ export function AppointmentDetailDialog({
           chairName={chairName}
           chairs={chairs}
           canWrite={canWrite}
-          role={role}
+          permissions={permissions}
           style={style}
           settings={settings}
           doctors={doctors}
@@ -128,7 +128,7 @@ function DetailBody({
   chairName,
   chairs,
   canWrite,
-  role,
+  permissions,
   style,
   settings,
   doctors,
@@ -141,7 +141,7 @@ function DetailBody({
   chairName: (code: string) => string;
   chairs: Chair[];
   canWrite: boolean;
-  role: StaffRole;
+  permissions: readonly Permission[];
   style: CalendarStyle;
   settings: ClinicSettings;
   doctors: DoctorOption[];
@@ -231,7 +231,7 @@ function DetailBody({
       )}
 
       {(isPremiumItem(settings.treatmentItemMeta, data.treatmentItem) || data.participants.length > 0) && (
-        <SurgerySection key={data.participants.map((p) => p.staffId).join(",")} data={data} role={role} onSaved={(message) => onLabelsSaved(message)} />
+        <SurgerySection key={data.participants.map((p) => p.staffId).join(",")} data={data} permissions={permissions} onSaved={(message) => onLabelsSaved(message)} />
       )}
 
       {canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (

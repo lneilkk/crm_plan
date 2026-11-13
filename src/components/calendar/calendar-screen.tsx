@@ -3,7 +3,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
-import { can } from "@/lib/auth/permissions";
 import {
   buildColumns,
   businessHoursOf,
@@ -14,7 +13,7 @@ import {
   minutesToTime,
 } from "@/lib/calendar/layout";
 import type { ClinicSettings } from "@/lib/domain/clinic";
-import type { StaffRole } from "@/lib/domain/staff";
+import type { Permission } from "@/lib/auth/permissions";
 import {
   addDays,
   type DateKey,
@@ -94,9 +93,9 @@ export function CalendarScreen() {
     <Calendar
       settings={settings.data}
       doctors={doctors.data.staff}
-      canWrite={can(me.data.role, "appointment.write")}
-      role={me.data.role}
-      canEditStyle={can(me.data.role, "settings.write")}
+      canWrite={me.data.permissions.includes("appointment.write")}
+      permissions={me.data.permissions}
+      canEditStyle={me.data.permissions.includes("settings.write")}
       style={calendarStyle.data ?? FALLBACK_STYLE}
       styleReady={calendarStyle.isSuccess}
     />
@@ -107,7 +106,7 @@ function Calendar({
   settings,
   doctors,
   canWrite,
-  role,
+  permissions,
   canEditStyle,
   style,
   styleReady,
@@ -115,7 +114,7 @@ function Calendar({
   settings: ClinicSettings;
   doctors: DoctorOption[];
   canWrite: boolean;
-  role: StaffRole;
+  permissions: readonly Permission[];
   /** [편집] 탭 — 관리자만 (F-2) */
   canEditStyle: boolean;
   style: CalendarStyle;
@@ -338,7 +337,7 @@ function Calendar({
           settings={settings}
           doctors={doctors}
           canWrite={canWrite}
-          role={role}
+          permissions={permissions}
           style={paintStyle}
           today={today}
           onClose={() => setOpened(null)}

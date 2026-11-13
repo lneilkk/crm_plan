@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
-import { can } from "@/lib/auth/permissions";
 import { APPOINTMENT_CHANNEL_LABEL, APPOINTMENT_STATUS_LABEL, type AppointmentStatus, type VisitReasonCode } from "@/lib/domain/appointment";
 import type { ClinicSettings } from "@/lib/domain/clinic";
 import { REFERRAL_SOURCE_LABEL } from "@/lib/domain/patient";
@@ -162,8 +161,8 @@ export function BoardScreen() {
     );
   }
 
-  const canVisit = can(me.data.role, "visit.write");
-  const canReschedule = can(me.data.role, "appointment.write");
+  const canVisit = me.data.permissions.includes("visit.write");
+  const canReschedule = me.data.permissions.includes("appointment.write");
   const busy = changeStatus.isPending || revert.isPending || reschedule.isPending;
   const data = board.data;
   const matched = last4 && searchResult.data ? new Set(searchResult.data.items.map((p) => p.id)) : null;

@@ -3,7 +3,6 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
-import { can } from "@/lib/auth/permissions";
 import { readableTextColor } from "@/lib/calendar/colors";
 import { type ConsultOutcome, CONSULT_OUTCOME_KIND_LABEL, summarizeConsultations } from "@/lib/domain/consult";
 import type { ClinicSettings } from "@/lib/domain/clinic";
@@ -53,7 +52,7 @@ export function ConsultScreen() {
 
   if (me.isPending || settings.isPending || counselors.isPending || doctors.isPending) return <Spinner showLabel />;
   if (!me.data || !settings.data || !counselors.data || !doctors.data) return <EmptyState title="불러오지 못했습니다" />;
-  const canWrite = can(me.data.role, "consult.write");
+  const canWrite = me.data.permissions.includes("consult.write");
   const items = list.data?.items ?? [];
   const outcomes = list.data?.outcomes ?? [];
   const summary = summarizeConsultations(items, outcomes);

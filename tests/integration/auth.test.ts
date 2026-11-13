@@ -75,7 +75,9 @@ describe("로그인 성공", () => {
       id: staff.id,
       name: "가상프론트",
       role: "FRONT",
+      department: "FRONT",
       loginId: staff.loginId,
+      permissions: ["patient.read", "patient.write", "appointment.read", "appointment.write", "visit.write", "settings.read", "staff.read", "surgery.record"],
       navSections: ["board", "calendar", "patients"],
     });
   });

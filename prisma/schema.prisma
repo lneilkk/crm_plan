@@ -188,7 +188,8 @@ model Staff {
   id               String    @id @default(uuid(7)) @db.Uuid // id
   loginId          String    @unique @map("login_id") // 로그인 아이디
   name             String // 이름
-  role             StaffRole // 역할(프론트/상담/의사/관리자)
+  role             StaffRole // 직무(프론트/상담/의사/간호/관리자). 부서는 직무에서 정해진다 (src/lib/auth/permissions.ts)
+  extraPermissions String[]  @default([]) @map("extra_permissions") // 개인 추가 권한(권한 이름). 직무 기본 권한에 더해진다 (확장 계획 S-2)
   branch           String    @default("본점") // 지점
   passwordHash     String    @map("password_hash") // 비밀번호 해시(argon2) — 원문은 저장하지 않는다
   failedLoginCount Int       @default(0) @map("failed_login_count") // 연속 로그인 실패 횟수 (기획서 10장 계정 잠금)

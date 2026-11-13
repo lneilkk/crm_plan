@@ -15,6 +15,7 @@
  */
 import { pathToFileURL } from "node:url";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { LEGACY_ROLE_EXTRAS } from "@/lib/auth/permissions";
 import { DEFAULT_CLINIC_SETTINGS } from "@/lib/domain/clinic";
 import type { StaffRole } from "@/lib/domain/staff";
 import { hashPassword } from "@/server/auth/password";
@@ -90,8 +91,9 @@ export async function seed(db: PrismaClient, env: SeedEnv): Promise<SeedResult> 
     const reset = { passwordHash, failedLoginCount: 0, lockedAt: null, isActive: true };
     await db.staff.upsert({
       where: { loginId },
-      create: { loginId, name, role, branch: SEED_BRANCH, ...reset },
-      update: { name, role, branch: SEED_BRANCH, ...reset },
+      // 의사 시험 계정은 원장처럼 통계·상담 보기를 추가 권한으로 갖는다 (S-2 변환과 같은 값)
+      create: { loginId, name, role, extraPermissions: [...LEGACY_ROLE_EXTRAS[role]], branch: SEED_BRANCH, ...reset },
+      update: { name, role, extraPermissions: [...LEGACY_ROLE_EXTRAS[role]], branch: SEED_BRANCH, ...reset },
     });
   }
 
