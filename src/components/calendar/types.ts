@@ -52,8 +52,8 @@ export type AppointmentDetail = {
   /** 수술 참여 직원 (F-11) */
   participants: { staffId: string; name: string; role: import("@/lib/domain/staff").StaffRole }[];
   /** 단가(원)·할인율(%) — F-6 */
-  /** 금액 권한(appointment.price)이 없으면 응답에 없다 (S-3) */
-  listPrice?: number;
+  /** 금액 권한(appointment.price)이 없으면 응답에 없다 (S-3). null은 예약 당시 항목 단가가 미입력 */
+  listPrice?: number | null;
   discountRate?: number;
   labelIds: string[];
   createdAt: string;

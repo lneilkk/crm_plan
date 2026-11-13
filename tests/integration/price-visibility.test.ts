@@ -284,7 +284,7 @@ describe("금액 권한이 없으면 고칠 수 없고, 보내지 않은 금액�
     expect(await db.appointment.findUniqueOrThrow({ where: { id: future.id } })).toMatchObject({ memo: "가상 메모", chair: "C2", listPrice: 1_000_000, discountRate: 15 });
   });
 
-  it("예약 항목 편집: 금액 권한 없이 단가를 보내면 403, 단가를 빼고 보내면 기존 단가 유지(새 항목은 0원)", async () => {
+  it("예약 항목 편집: 금액 권한 없이 단가를 보내면 403, 단가를 빼고 보내면 기존 단가 유지(새 항목은 단가 미입력)", async () => {
     const editor = await loginAs("FRONT", { extraPermissions: ["settings.write"] });
     const meta = DEFAULT_CLINIC_SETTINGS.treatmentItemMeta;
     const items = DEFAULT_CLINIC_SETTINGS.treatmentItems.map((name) => ({ name, category: meta[name]?.category ?? "GENERAL" }));
@@ -297,8 +297,8 @@ describe("금액 권한이 없으면 고칠 수 없고, 보내지 않은 금액�
     const ok = await put({ items: [...items, { name: "가상신규항목", category: "GENERAL" }] });
     expect(ok.status).toBe(200);
     expect(priceKeysIn(ok.json)).toEqual([]);
-    const saved = (await db.clinicSetting.findUniqueOrThrow({ where: { id: 1 } })).treatmentItemMeta as Record<string, { price: number }>;
+    const saved = (await db.clinicSetting.findUniqueOrThrow({ where: { id: 1 } })).treatmentItemMeta as Record<string, { price: number | null }>;
     expect(saved["임플란트"].price).toBe(meta["임플란트"].price);
-    expect(saved["가상신규항목"].price).toBe(0);
+    expect(saved["가상신규항목"].price).toBeNull(); // 0원(무료)과 구분되는 "단가 미입력"
   });
 });

@@ -11,8 +11,8 @@ describe("예약 항목 구분·단가 (F-5·F-6)", () => {
     for (const item of ["스케일링", "정기검진", "충치 치료"]) expect(isPremiumItem(DEFAULT_TREATMENT_ITEM_META, item)).toBe(false);
   });
 
-  it("설정에 없는 항목은 일반·단가 0으로 본다", () => {
-    expect(treatmentMetaOf({}, "새 항목")).toEqual({ category: "GENERAL", price: 0 });
+  it("설정에 없는 항목은 일반·단가 미입력(null, 0원과 다름)으로 본다", () => {
+    expect(treatmentMetaOf({}, "새 항목")).toEqual({ category: "GENERAL", price: null });
   });
 });
 

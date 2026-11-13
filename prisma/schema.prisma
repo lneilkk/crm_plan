@@ -266,7 +266,7 @@ model Appointment {
   arrivedAt             DateTime?          @map("arrived_at") @db.Timestamptz(3) // 내원 입력 시각 — 지각 계산용 캐시
   originalAppointmentId String?            @unique @map("original_appointment_id") @db.Uuid // 원 예약 id(변경 시)
   memo                  String? // 메모
-  listPrice             Int                @default(0) @map("list_price") // 단가(원) — 등록·항목 변경 시점의 예약 항목 단가 (F-6)
+  listPrice             Int?               @map("list_price") // 단가(원) — 등록·항목 변경 시점의 예약 항목 단가 (F-6). null은 그 항목 단가가 미입력이었음(S-3)
   discountRate          Int                @default(0) @map("discount_rate") // 할인율(%) 0~100 (F-6)
   createdById           String?            @map("created_by_id") @db.Uuid // 등록한 직원
   createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(3) // 등록 시각

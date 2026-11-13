@@ -54,11 +54,12 @@ export function AppointmentEditSection({
   const placementEditable =
     kstDateKey(new Date(data.startAt)) >= today && (SLOT_HOLDING_STATUSES as readonly string[]).includes(data.status);
   const itemChanged = item !== data.treatmentItem;
-  const price = (itemChanged ? treatmentMetaOf(settings.treatmentItemMeta, item).price : data.listPrice) ?? 0;
+  // null = 단가 미입력 (S-3)
+  const price = (itemChanged ? treatmentMetaOf(settings.treatmentItemMeta, item).price : data.listPrice) ?? null;
   const discountNumber = Number(discount);
   // 금액 권한이 없으면 할인율 칸이 없으므로 검사할 것도 없다
   const discountOk = !canPrice || (discount.trim() !== "" && isValidDiscountRate(discountNumber));
-  const amount = canPrice && discountOk ? amountAfterDiscount(price, discountNumber) : null;
+  const amount = canPrice && discountOk && price !== null ? amountAfterDiscount(price, discountNumber) : null;
   const chairKind = (code: string) => settings.chairs.find((c) => c.code === code)?.kind;
   const needsChair = chairKind(chair) === "CONSULT_ROOM" && !isPremiumItem(settings.treatmentItemMeta, item);
 
@@ -87,7 +88,7 @@ export function AppointmentEditSection({
 
   const priceLine = (
     <p className="text-base text-slate-800">
-      단가 {won(price)}
+      단가 {price === null ? "미입력" : won(price)}
       {discountOk && discountNumber > 0 && ` · 할인 ${discountNumber}%`}
       {amount !== null && <strong className="ml-1">→ 금액 {won(amount)}</strong>}
       <span className="ml-2 text-sm text-slate-500">(병원 기준 단가로 계산한 금액)</span>

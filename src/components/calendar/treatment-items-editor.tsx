@@ -14,7 +14,7 @@ import {
 } from "@/lib/domain/treatment";
 import { isHexColor } from "@/lib/calendar/colors";
 import { useAccess } from "@/components/auth/access";
-import { Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
+import { Badge, Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
 
 type Draft = { key: string; name: string; category: TreatmentCategory; price: string; color: string };
 
@@ -22,7 +22,7 @@ let seq = 0;
 const toDraft = (settings: ClinicSettings): Draft[] =>
   settings.treatmentItems.map((name) => {
     const meta = treatmentMetaOf(settings.treatmentItemMeta, name);
-    return { key: `i-${(seq += 1)}`, name, category: meta.category, price: String(meta.price ?? 0), color: treatmentColorOf(settings.treatmentItemMeta, name) ?? "#E0E0E0" };
+    return { key: `i-${(seq += 1)}`, name, category: meta.category, price: meta.price === null ? "" : String(meta.price), color: treatmentColorOf(settings.treatmentItemMeta, name) ?? "#E0E0E0" };
   });
 
 /**
@@ -40,7 +40,10 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
   if (items.length === 0) problems.push("예약 항목이 하나 이상 있어야 합니다.");
   if (names.some((name) => !name)) problems.push("이름이 빈 예약 항목이 있습니다.");
   if (new Set(names.filter(Boolean)).size !== names.filter(Boolean).length) problems.push("같은 이름의 예약 항목이 있습니다.");
-  if (canPrice && items.some((item) => !/^\d+$/.test(item.price) || Number(item.price) > PRICE_MAX)) problems.push("단가는 0 이상의 원 단위 숫자로 입력하세요.");
+  // 빈 단가 = "단가 미입력"(0원과 다름). 저장은 되지만 표시가 남는다 (S-3)
+  if (canPrice && items.some((item) => item.price !== "" && (!/^\d+$/.test(item.price) || Number(item.price) > PRICE_MAX)))
+    problems.push("단가는 0 이상의 원 단위 숫자로 입력하세요(모르면 비워 두면 '단가 미입력').");
+  const unpriced = items.filter((item) => item.price === "" && item.name.trim());
   if (items.some((item) => !isHexColor(item.color))) problems.push("색은 #RRGGBB 형식이어야 합니다.");
 
   const save = useMutation({
@@ -51,7 +54,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
           items: items.map((item) => ({
             name: item.name.trim(),
             category: item.category,
-            ...(canPrice ? { price: Number(item.price) } : {}),
+            ...(canPrice ? { price: item.price === "" ? null : Number(item.price) } : {}),
             color: item.color,
           })),
         },
@@ -79,6 +82,11 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
         <strong>고가(상담 대상)</strong> 항목만 상담실 열에 예약할 수 있습니다. 단가는 의사·상담자 실적 금액(단가 × (100 − 할인율)%)에 쓰입니다.
         처음 값은 예시이니 병원 단가로 바꾸세요. 이름을 바꾸면 이미 있는 예약은 옛 이름으로 남습니다.
       </p>
+      {canPrice && unpriced.length > 0 && (
+        <p role="status" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-base font-semibold text-amber-900">
+          단가 미입력 {unpriced.length}개: {unpriced.map((item) => item.name.trim()).join(", ")} — 단가를 채우면 이 항목으로 단가 없이 잡힌 예약에도 들어갑니다.
+        </p>
+      )}
       <ol className="flex flex-col gap-2">
         {items.map((item, index) => (
           <li key={item.key} className="flex flex-wrap items-center gap-2" aria-label={`예약 항목 ${index + 1}`}>
@@ -119,6 +127,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
                 onChange={(e) => update(item.key, { price: e.target.value.replace(/[^\d]/g, "") })}
               />
               원
+              {item.price === "" && <Badge tone="warning">단가 미입력</Badge>}
             </span>
             )}
             <Button variant="ghost" className="text-red-700" aria-label={`${item.name} 삭제`} onClick={() => setItems((list) => list.filter((x) => x.key !== item.key))}>
@@ -128,7 +137,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
         ))}
       </ol>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button variant="secondary" onClick={() => setItems((list) => [...list, { key: `i-${(seq += 1)}`, name: "", category: "GENERAL", price: "0", color: "#E0E0E0" }])}>
+        <Button variant="secondary" onClick={() => setItems((list) => [...list, { key: `i-${(seq += 1)}`, name: "", category: "GENERAL", price: "", color: "#E0E0E0" }])}>
           + 예약 항목 추가
         </Button>
         <Button disabled={problems.length > 0 || save.isPending} onClick={() => save.mutate()}>

@@ -42,7 +42,7 @@ const settingsSchema = z.object({
     z.string(),
     z.object({
       category: z.enum(TREATMENT_CATEGORIES),
-      price: z.number().int().min(0).max(PRICE_MAX),
+      price: z.number().int().min(0).max(PRICE_MAX).nullable(),
       color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
     }),
   ),

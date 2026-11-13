@@ -183,8 +183,14 @@ function DetailBody({
         {data.originalAppointmentId && <Row label="변경 전 예약">있음 (예약변경으로 만든 예약)</Row>}
         {price && (
           <Row label="금액">
-            {price.list.toLocaleString("ko-KR")}원{price.discount > 0 && ` · 할인 ${price.discount}%`} →{" "}
-            <strong>{amountAfterDiscount(price.list, price.discount).toLocaleString("ko-KR")}원</strong>
+            {price.list === null ? (
+              <span className="font-semibold text-amber-800">단가 미입력 — [편집] → [예약 항목]에서 단가를 채우면 이 예약에도 들어갑니다</span>
+            ) : (
+              <>
+                {price.list.toLocaleString("ko-KR")}원{price.discount > 0 && ` · 할인 ${price.discount}%`} →{" "}
+                <strong>{amountAfterDiscount(price.list, price.discount).toLocaleString("ko-KR")}원</strong>
+              </>
+            )}
           </Row>
         )}
         <Row label="색 라벨">

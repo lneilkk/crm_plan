@@ -8,9 +8,10 @@ import { Button, Card, CardTitle, EmptyState, FieldError, Input, Label, Spinner,
 import { type Period, PERIOD_PRESETS, type PeriodPreset, periodError, presetPeriod } from "./period";
 
 /** amount는 금액 권한(appointment.price)이 있을 때만 응답에 온다 (S-3) */
-type Line = { item: string; patients: number; visits: number; amount?: number };
-type Row = { staffId: string | null; staffName: string; patients: number; visits: number; amount?: number; items: Line[] };
-type Report = { from: string; to: string; doctors: Row[]; counselors: Row[] };
+type Line = { item: string; patients: number; visits: number; amount?: number; unpricedVisits?: number };
+type Row = { staffId: string | null; staffName: string; patients: number; visits: number; amount?: number; unpricedVisits?: number; items: Line[] };
+/** unpricedVisits: 단가 미입력 예약 수 — 금액 합에 들어가지 않는다 (금액 권한이 있을 때만) */
+type Report = { from: string; to: string; doctors: Row[]; counselors: Row[]; unpricedVisits?: number };
 
 const won = (value: number) => `${value.toLocaleString("ko-KR")}원`;
 
@@ -85,6 +86,11 @@ export function PerformanceView() {
         <EmptyState title={report.error.message} action={<Button onClick={() => report.refetch()}>다시 시도</Button>} />
       ) : report.data ? (
         <>
+          {(report.data.unpricedVisits ?? 0) > 0 && (
+            <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-base font-semibold text-amber-900">
+              단가 미입력 예약 {report.data.unpricedVisits}건은 금액에 들어가지 않았습니다. [예약 캘린더] → [편집] → [예약 항목]에서 단가를 채우세요.
+            </p>
+          )}
           <PerformanceTable title="의사별 실적" rows={report.data.doctors} />
           <PerformanceTable title="상담자별 실적" rows={report.data.counselors} />
         </>

@@ -224,14 +224,14 @@ describe("F-6 실적 (GET /api/stats/performance)", () => {
     const d1 = res.json.doctors.find((r: { staffId: string }) => r.staffId === doc1.id);
     expect(d1).toMatchObject({ staffName: "가상의사일", patients: 2, visits: 3, amount: 1_080_000 + 1_200_000 + 600_000 });
     expect(d1.items).toEqual([
-      { item: "임플란트", patients: 2, visits: 2, amount: 2_280_000 },
-      { item: "라미네이트", patients: 1, visits: 1, amount: 600_000 },
+      { item: "임플란트", patients: 2, visits: 2, amount: 2_280_000, unpricedVisits: 0 },
+      { item: "라미네이트", patients: 1, visits: 1, amount: 600_000, unpricedVisits: 0 },
     ]);
     const d2 = res.json.doctors.find((r: { staffId: string }) => r.staffId === doc2.id);
     expect(d2).toMatchObject({ patients: 1, visits: 1, amount: 15_000 }); // 노쇼는 빠진다
     expect(res.json.doctors.at(-1)).toMatchObject({ staffId: null, staffName: "미지정", visits: 1 });
     expect(res.json.counselors).toEqual([
-      { staffId: counselor.id, staffName: "가상상담", patients: 2, visits: 2, amount: 2_280_000, items: [{ item: "임플란트", patients: 2, visits: 2, amount: 2_280_000 }] },
+      { staffId: counselor.id, staffName: "가상상담", patients: 2, visits: 2, amount: 2_280_000, unpricedVisits: 0, items: [{ item: "임플란트", patients: 2, visits: 2, amount: 2_280_000, unpricedVisits: 0 }] },
     ]);
     expect(res.text).not.toContain(p1.id);
     expect(res.text).not.toContain(p1.name);

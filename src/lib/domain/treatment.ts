@@ -18,8 +18,11 @@ export const TREATMENT_CATEGORY_LABEL: Record<TreatmentCategory, string> = {
   GENERAL: "일반",
 };
 
-/** color: 캘린더 칸 색(#RRGGBB, F-9). 없으면 기본 항목 색, 그것도 없으면 상태 색 */
-export type TreatmentMeta = { category: TreatmentCategory; price: number; color?: string };
+/**
+ * price: 단가(원). null은 "단가 미입력"이다(금액 권한 없이 만든 항목 등, S-3) — 0원(무료)과 다르다.
+ * color: 캘린더 칸 색(#RRGGBB, F-9). 없으면 기본 항목 색, 그것도 없으면 상태 색
+ */
+export type TreatmentMeta = { category: TreatmentCategory; price: number | null; color?: string };
 /** 항목 이름 → 구분·단가 (clinic_setting.treatment_item_meta) */
 export type TreatmentItemMeta = Record<string, TreatmentMeta>;
 
@@ -41,7 +44,8 @@ export const DEFAULT_TREATMENT_ITEM_META: TreatmentItemMeta = {
 };
 
 export function treatmentMetaOf(meta: TreatmentItemMeta, item: string): TreatmentMeta {
-  return Object.hasOwn(meta, item) ? meta[item] : { category: "GENERAL", price: 0 };
+  // 설정에 없는 항목은 단가를 모른다(미입력)
+  return Object.hasOwn(meta, item) ? meta[item] : { category: "GENERAL", price: null };
 }
 
 /** 항목의 칸 색: 설정의 색 → 기본 항목 색 → null(상태 색을 쓴다) */

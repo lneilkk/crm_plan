@@ -31,3 +31,17 @@ test("관리자는 [편집]에서 간호 직원을 추가하고, 체어에 묶�
   await page.getByRole("group", { name: "화면" }).getByRole("button", { name: "캘린더" }).click();
   await expect(page.getByText("보철과", { exact: true }).first()).toBeVisible();
 });
+
+// S-3 보완: 단가를 비우면 "단가 미입력"으로 표시된다(0원과 구분). 저장하지 않고 화면 표시만 본다(공유 E2E DB를 바꾸지 않음).
+test("관리자가 [예약 항목]에서 단가를 비우면 '단가 미입력' 표시가 뜬다", async ({ page }) => {
+  await login(page, "admin");
+  await page.goto("/calendar");
+  await page.getByRole("group", { name: "화면" }).getByRole("button", { name: "편집" }).click();
+  await page.getByRole("navigation", { name: "편집 메뉴" }).getByRole("button", { name: "예약 항목" }).click();
+  const price = page.getByLabel("보철 단가(원)");
+  await expect(price).not.toHaveValue("");
+  await expect(page.getByText("단가 미입력", { exact: true })).toHaveCount(0);
+  await price.fill("");
+  await expect(page.getByText("단가 미입력", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("status").filter({ hasText: "단가 미입력 1개: 보철" })).toBeVisible();
+});
