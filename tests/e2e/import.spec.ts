@@ -11,7 +11,11 @@ test("관리자는 엑셀을 시험 실행한 뒤 가져오고, 주민번호 열
   const buffer = await writeExcelFile([header, ...rows]).toBuffer();
 
   await login(page, "admin");
-  await page.getByRole("link", { name: "가져오기" }).click();
+  // 가져오기는 상단 메뉴가 아니라 예약 캘린더 [편집] 안에 있다 (S-4 보완)
+  await expect(page.getByRole("navigation", { name: "주 메뉴" }).getByRole("link", { name: "가져오기" })).toHaveCount(0);
+  await page.goto("/calendar");
+  await page.getByRole("group", { name: "화면" }).getByRole("button", { name: "편집" }).click();
+  await page.getByRole("navigation", { name: "편집 메뉴" }).getByRole("button", { name: "가져오기" }).click();
   await expect(page.getByRole("heading", { name: "기존 CRM 데이터 가져오기" })).toBeVisible();
   await page.getByLabel("가짜(시험) 파일만 쓴다는 것을 확인했습니다").check();
   await page.getByLabel(/엑셀 파일/).setInputFiles({ name: "fake.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer });

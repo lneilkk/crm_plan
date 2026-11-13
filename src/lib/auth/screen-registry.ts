@@ -16,7 +16,9 @@ export const SCREEN_AREAS = {
   // 예약 캘린더·예약 상세
   "appointment.write": { label: "예약 등록·옮기기·[고치기]·라벨·[예약변경]", permission: "appointment.write" },
   "appointment.price": { label: "예약 금액(단가·할인율)·실적 금액·항목 단가", permission: "appointment.price" },
-  "calendar.settings": { label: "예약 캘린더 — [편집] 탭", permission: "settings.write" },
+  "calendar.settings": { label: "[편집] — 병원 설정 하위 메뉴(예약 항목·라벨·체어·진료시간·첫 화면 등)", permission: "settings.write" },
+  "settings.staff": { label: "[편집] — 직원", permission: "staff.manage" },
+  "settings.import": { label: "[편집] — 기존 CRM 가져오기", permission: "data.import" },
   "surgery.participants": { label: "수술 기록 — 참여 직원 고르기", permission: "surgery.record" },
   "surgery.note": { label: "수술 기록 — 수술 메모", permission: "surgery.note" },
   // 상담
@@ -52,7 +54,6 @@ export const SCREENS = [
   { path: "/patients/new", label: "고객 등록", permission: "patient.write" },
   { path: "/patients/[id]", label: "고객 상세", permission: "patient.read" },
   { path: "/stats", label: "통계", permission: "stats.read" },
-  { path: "/import", label: "가져오기", permission: "data.import" },
   { path: "/account/password", label: "비밀번호 변경", permission: null },
 ] as const satisfies ReadonlyArray<{ path: string; label: string; permission: Permission | null }>;
 

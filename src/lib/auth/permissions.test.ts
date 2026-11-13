@@ -111,7 +111,8 @@ describe("변환 전후 사람별 권한이 같다 (S-2 완료 기준)", () => {
     expect(menu("COUNSELOR")).toEqual(["board", "calendar", "consult", "patients"]);
     expect(menu("DOCTOR")).toEqual(["board", "calendar", "consult", "patients", "stats"]);
     expect(menu("NURSE")).toEqual(["board", "calendar", "patients"]);
-    expect(menu("ADMIN")).toEqual(["board", "calendar", "consult", "patients", "stats", "import"]);
+    // 가져오기는 S-4 보완에서 메뉴가 아니라 [편집] 안으로 옮겼다(사용자 결정)
+    expect(menu("ADMIN")).toEqual(["board", "calendar", "consult", "patients", "stats"]);
   });
 });
 

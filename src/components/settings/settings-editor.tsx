@@ -11,20 +11,28 @@ import { ClinicRulesEditor } from "./clinic-rules-editor";
 import { ConsultOutcomesEditor } from "./consult-outcomes-editor";
 import { DepartmentHomesEditor } from "./department-homes-editor";
 import { StaffEditor } from "./staff-editor";
+import { useAccess } from "@/components/auth/access";
+import { ImportScreen } from "@/components/import/import-screen";
+import type { ScreenArea } from "@/lib/auth/screen-registry";
 
+/** 하위 메뉴마다 화면 등록부의 영역 — 그 권한이 있는 메뉴만 보인다 */
 const SECTIONS = [
-  { key: "items", label: "예약 항목" },
-  { key: "labels", label: "색 라벨" },
-  { key: "statuses", label: "상태 표시" },
-  { key: "chairs", label: "체어·열" },
-  { key: "consult", label: "상담 결과" },
-  { key: "rules", label: "진료시간·기준" },
-  { key: "staff", label: "직원" },
-  { key: "homes", label: "부서별 첫 화면" },
-] as const;
+  { key: "items", label: "예약 항목", area: "calendar.settings" },
+  { key: "labels", label: "색 라벨", area: "calendar.settings" },
+  { key: "statuses", label: "상태 표시", area: "calendar.settings" },
+  { key: "chairs", label: "체어·열", area: "calendar.settings" },
+  { key: "consult", label: "상담 결과", area: "calendar.settings" },
+  { key: "rules", label: "진료시간·기준", area: "calendar.settings" },
+  { key: "homes", label: "부서별 첫 화면", area: "calendar.settings" },
+  { key: "staff", label: "직원", area: "settings.staff" },
+  { key: "import", label: "가져오기", area: "settings.import" },
+] as const satisfies ReadonlyArray<{ key: string; label: string; area: ScreenArea }>;
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
-/** 캘린더 [편집] 탭 (F-14) — 왼쪽 하위 메뉴, 오른쪽 한 가지씩. 관리자만(서버가 settings.write·staff.manage로 막는다). */
+/**
+ * 캘린더 [편집] 탭 (F-14) — 왼쪽 하위 메뉴, 오른쪽 한 가지씩. 하위 메뉴는 권한별로 보인다(화면 등록부).
+ * 실제 차단은 각 API(settings.write·staff.manage·data.import)가 한다. [가져오기]는 S-4 보완에서 상단 메뉴에서 옮겨 왔다.
+ */
 export function SettingsEditor({
   settings,
   style,
@@ -36,11 +44,14 @@ export function SettingsEditor({
   styleReady: boolean;
   onSaved: (message: string) => void;
 }) {
-  const [section, setSection] = useState<SectionKey>("items");
+  const { allows } = useAccess();
+  const visible = SECTIONS.filter((s) => allows(s.area));
+  const [chosen, setSection] = useState<SectionKey | null>(null);
+  const section = visible.some((s) => s.key === chosen) ? chosen : (visible[0]?.key ?? null);
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-start">
       <nav aria-label="편집 메뉴" className="flex shrink-0 flex-row flex-wrap gap-1 md:w-36 md:flex-col">
-        {SECTIONS.map((s) => (
+        {visible.map((s) => (
           <button
             key={s.key}
             type="button"
@@ -65,6 +76,7 @@ export function SettingsEditor({
         {section === "consult" && <ConsultOutcomesEditor onSaved={onSaved} />}
         {section === "staff" && <StaffEditor onSaved={onSaved} />}
         {section === "homes" && <DepartmentHomesEditor onSaved={onSaved} />}
+        {section === "import" && <ImportScreen />}
       </div>
     </div>
   );

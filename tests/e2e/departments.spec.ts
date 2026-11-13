@@ -14,20 +14,18 @@ const MENUS: Record<LoginId, string[]> = {
   nurse1: ["내원 보드", "예약 캘린더", "고객"],
   doctor1: ["내원 보드", "예약 캘린더", "상담", "고객", "통계"], // 원장: 진료 + 추가 권한
   doctor2: ["내원 보드", "예약 캘린더", "상담", "고객", "통계"],
-  admin: ["내원 보드", "예약 캘린더", "상담", "고객", "통계", "가져오기"],
+  admin: ["내원 보드", "예약 캘린더", "상담", "고객", "통계"], // 가져오기는 [편집] 안 (S-4 보완)
 };
 
 /** 화면이 그리면 안 되는 내용(그 화면이 실행되면 바로 보이는 글자) */
 const FORBIDDEN_TEXT: Record<string, string[]> = {
   "/consult": ["전체 상담", "초진(신환) 상담", "전환율"],
   "/stats": ["내원 통계", "실내원율"],
-  "/import": ["기존 CRM 데이터 가져오기"],
   "/patients/new": ["휴대폰 *", "덴트웹 차트번호"],
 };
 const DATA_API: Record<string, RegExp> = {
   "/consult": /\/api\/consultations/,
   "/stats": /\/api\/stats/,
-  "/import": /\/api\/import/,
   "/patients/new": /\/api\/patients(\?|$)/,
 };
 
@@ -58,8 +56,8 @@ test.describe("부서별 첫 화면과 메뉴", () => {
 
 test.describe("권한 없는 화면 주소", () => {
   const CASES: [LoginId, string[]][] = [
-    ["front1", ["/consult", "/stats", "/import"]],
-    ["nurse1", ["/consult", "/stats", "/import", "/patients/new"]],
+    ["front1", ["/consult", "/stats"]],
+    ["nurse1", ["/consult", "/stats", "/patients/new"]],
   ];
   for (const [loginId, paths] of CASES) {
     test(`${loginId}: ${paths.join(", ")} → 권한 없음 안내만, 데이터 API 호출 없음, 가짜 값이 한 번도 안 보임`, async ({ page }) => {
@@ -115,4 +113,28 @@ test("관리자 [편집] → [부서별 첫 화면]에 네 부서의 첫 화면�
   await expect(page.getByLabel("상담 첫 화면")).toHaveValue("/consult");
   await expect(page.getByLabel("진료 첫 화면")).toHaveValue("/calendar");
   await expect(page.getByLabel("운영 첫 화면")).toHaveValue("/stats");
+});
+
+test("[편집] 하위 메뉴는 권한별: 관리자는 가져오기까지, 프론트는 [편집] 탭 자체가 없다", async ({ page }) => {
+  await login(page, "admin");
+  await page.goto("/calendar");
+  await page.getByRole("group", { name: "화면" }).getByRole("button", { name: "편집" }).click();
+  await expect(page.getByRole("navigation", { name: "편집 메뉴" }).getByRole("button")).toHaveText([
+    "예약 항목",
+    "색 라벨",
+    "상태 표시",
+    "체어·열",
+    "상담 결과",
+    "진료시간·기준",
+    "부서별 첫 화면",
+    "직원",
+    "가져오기",
+  ]);
+  await page.getByRole("button", { name: "로그아웃" }).click();
+  await login(page, "front1");
+  await page.goto("/calendar");
+  await expect(page.getByRole("heading", { name: "예약 캘린더" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "오늘" })).toBeVisible(); // 캘린더가 다 그려진 뒤에 본다
+  await expect(page.getByRole("group", { name: "화면" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "편집", exact: true })).toHaveCount(0);
 });

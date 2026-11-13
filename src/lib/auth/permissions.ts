@@ -117,14 +117,17 @@ export function hasPermission(access: StaffAccess, permission: Permission): bool
   return permissionsOf(access).includes(permission);
 }
 
-/** 상단 메뉴 구역. 화면을 숨기는 것은 편의일 뿐이고, 실제 차단은 API의 권한 검사가 한다. */
+/**
+ * 상단 메뉴 구역. 화면을 숨기는 것은 편의일 뿐이고, 실제 차단은 API의 권한 검사가 한다.
+ * 권한이 있는 메뉴를 개수 때문에 숨기지 않는다. 기준: 추가 권한이 없는 프론트·상담·진료 직무는 4개 이하(사용자 결정 2026-11-13).
+ * 가끔 쓰는 관리 기능(가져오기 등)은 메뉴가 아니라 예약 캘린더 [편집] 안에 둔다.
+ */
 export const NAV_SECTIONS = [
   { key: "board", label: "내원 보드", href: "/board", permission: "appointment.read" },
   { key: "calendar", label: "예약 캘린더", href: "/calendar", permission: "appointment.read" },
   { key: "consult", label: "상담", href: "/consult", permission: "consult.read" },
   { key: "patients", label: "고객", href: "/patients", permission: "patient.read" },
   { key: "stats", label: "통계", href: "/stats", permission: "stats.read" },
-  { key: "import", label: "가져오기", href: "/import", permission: "data.import" },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; href: string; permission: Permission }>;
 
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];

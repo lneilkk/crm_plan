@@ -96,7 +96,7 @@ export function CalendarScreen() {
       doctors={doctors.data.staff}
       canWrite={allowsArea(me.data.permissions, "appointment.write")}
       permissions={me.data.permissions}
-      canEditStyle={allowsArea(me.data.permissions, "calendar.settings")}
+      canEditStyle={(["calendar.settings", "settings.staff", "settings.import"] as const).some((area) => allowsArea(me.data.permissions, area))}
       style={calendarStyle.data ?? FALLBACK_STYLE}
       styleReady={calendarStyle.isSuccess}
     />
