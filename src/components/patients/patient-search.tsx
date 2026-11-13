@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/auth/api-client";
 import { GENDER_LABEL, REFERRAL_SOURCE_LABEL } from "@/lib/domain/patient";
 import type { PatientListItem } from "@/server/patients/service";
 import { Badge, Button, EmptyState, Input, Spinner, Table, TBody, Td, Th, THead, Tr } from "@/components/ui";
+import { Allowed } from "@/components/auth/access";
 
 const DEBOUNCE_MS = 300;
 
@@ -39,9 +40,11 @@ export function PatientSearch() {
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-slate-900">고객</h1>
-        <Button size="lg" onClick={() => router.push("/patients/new")}>
-          고객 등록
-        </Button>
+        <Allowed area="patients.create">
+          <Button size="lg" onClick={() => router.push("/patients/new")}>
+            고객 등록
+          </Button>
+        </Allowed>
       </div>
 
       <div className="flex items-center gap-3">
@@ -73,7 +76,11 @@ export function PatientSearch() {
         <EmptyState
           title={query ? "검색 결과가 없습니다" : "등록된 고객이 없습니다"}
           description={query ? "번호 뒷 4자리, 이름, 차트번호를 다시 확인하세요." : undefined}
-          action={<Button onClick={() => router.push("/patients/new")}>고객 등록</Button>}
+          action={
+            <Allowed area="patients.create">
+              <Button onClick={() => router.push("/patients/new")}>고객 등록</Button>
+            </Allowed>
+          }
         />
       ) : (
         <>

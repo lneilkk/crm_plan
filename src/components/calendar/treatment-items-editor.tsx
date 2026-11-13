@@ -13,7 +13,7 @@ import {
   treatmentMetaOf,
 } from "@/lib/domain/treatment";
 import { isHexColor } from "@/lib/calendar/colors";
-import { usePermissions } from "@/components/auth/use-permissions";
+import { useAccess } from "@/components/auth/access";
 import { Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
 
 type Draft = { key: string; name: string; category: TreatmentCategory; price: string; color: string };
@@ -32,7 +32,7 @@ const toDraft = (settings: ClinicSettings): Draft[] =>
  */
 export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSettings; onSaved: (message: string) => void }) {
   const queryClient = useQueryClient();
-  const canPrice = usePermissions().has("appointment.price");
+  const canPrice = useAccess().allows("appointment.price");
   const [items, setItems] = useState<Draft[]>(() => toDraft(settings));
 
   const problems: string[] = [];

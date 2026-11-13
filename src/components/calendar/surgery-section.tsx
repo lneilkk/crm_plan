@@ -9,8 +9,12 @@ import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import { containsResidentRegistrationNumber, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
 import { Badge, Button, FieldError, Spinner } from "@/components/ui";
 import type { AppointmentDetail } from "./types";
+import { allowsArea } from "@/lib/auth/screen-registry";
 
 type StaffOption = { id: string; name: string; role: StaffRole };
+
+/** 참여 직원 배지 색 — 간호를 눈에 띄게 */
+const PARTICIPANT_TONE: Partial<Record<StaffRole, "info">> = { NURSE: "info" };
 
 /**
  * 수술 기록 (F-11) — 참여 직원(간호·의사 등)과 수술 메모(실수 등, 원장·관리자만).
@@ -25,8 +29,8 @@ export function SurgerySection({
   permissions: readonly Permission[];
   onSaved: (message: string) => void;
 }) {
-  const canRecord = permissions.includes("surgery.record");
-  const canNote = permissions.includes("surgery.note");
+  const canRecord = allowsArea(permissions, "surgery.participants");
+  const canNote = allowsArea(permissions, "surgery.note");
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>(data.participants.map((p) => p.staffId));
   const staff = useQuery({
@@ -56,7 +60,7 @@ export function SurgerySection({
           <span className="text-slate-500">없음</span>
         ) : (
           data.participants.map((p) => (
-            <Badge key={p.staffId} tone={p.role === "NURSE" ? "info" : "neutral"}>
+            <Badge key={p.staffId} tone={PARTICIPANT_TONE[p.role] ?? "neutral"}>
               {p.name} ({STAFF_ROLE_LABEL[p.role]})
             </Badge>
           ))

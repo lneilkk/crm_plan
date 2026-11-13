@@ -44,6 +44,7 @@ import { SettingsEditor } from "@/components/settings/settings-editor";
 import { DayView, type MoveTarget } from "./day-view";
 import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } from "./types";
 import { WeekView } from "./week-view";
+import { allowsArea } from "@/lib/auth/screen-registry";
 
 type ViewMode = "day" | "week";
 
@@ -93,9 +94,9 @@ export function CalendarScreen() {
     <Calendar
       settings={settings.data}
       doctors={doctors.data.staff}
-      canWrite={me.data.permissions.includes("appointment.write")}
+      canWrite={allowsArea(me.data.permissions, "appointment.write")}
       permissions={me.data.permissions}
-      canEditStyle={me.data.permissions.includes("settings.write")}
+      canEditStyle={allowsArea(me.data.permissions, "calendar.settings")}
       style={calendarStyle.data ?? FALLBACK_STYLE}
       styleReady={calendarStyle.isSuccess}
     />

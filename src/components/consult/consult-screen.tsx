@@ -10,6 +10,7 @@ import { addDays, type DateKey, formatKstDateLabel, formatKstShortDate, formatKs
 import { Badge, Button, cn, EmptyState, Input, Spinner, Toast, type ToastTone } from "@/components/ui";
 import { ConsultDetailDialog } from "./consult-detail-dialog";
 import { ConsultNewDialog } from "./consult-new-dialog";
+import { allowsArea } from "@/lib/auth/screen-registry";
 
 export type ConsultItem = {
   id: string;
@@ -52,7 +53,7 @@ export function ConsultScreen() {
 
   if (me.isPending || settings.isPending || counselors.isPending || doctors.isPending) return <Spinner showLabel />;
   if (!me.data || !settings.data || !counselors.data || !doctors.data) return <EmptyState title="불러오지 못했습니다" />;
-  const canWrite = me.data.permissions.includes("consult.write");
+  const canWrite = allowsArea(me.data.permissions, "consult.write");
   const items = list.data?.items ?? [];
   const outcomes = list.data?.outcomes ?? [];
   const summary = summarizeConsultations(items, outcomes);

@@ -13,6 +13,7 @@ import type { BoardRow } from "@/server/board/rows";
 import type { PatientListItem } from "@/server/patients/service";
 import { ReasonDialog } from "./reason-dialog";
 import { RescheduleDialog, type RescheduleValues } from "./reschedule-dialog";
+import { allowsArea } from "@/lib/auth/screen-registry";
 
 const POLL_MS = 10_000;
 const UNDO_MS = 5_000;
@@ -161,8 +162,8 @@ export function BoardScreen() {
     );
   }
 
-  const canVisit = me.data.permissions.includes("visit.write");
-  const canReschedule = me.data.permissions.includes("appointment.write");
+  const canVisit = allowsArea(me.data.permissions, "board.visitActions");
+  const canReschedule = allowsArea(me.data.permissions, "board.reschedule");
   const busy = changeStatus.isPending || revert.isPending || reschedule.isPending;
   const data = board.data;
   const matched = last4 && searchResult.data ? new Set(searchResult.data.items.map((p) => p.id)) : null;

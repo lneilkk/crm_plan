@@ -28,6 +28,7 @@ import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from
 import { AppointmentEditSection } from "./appointment-edit-section";
 import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
 import { type AppointmentDetail, type CalendarAppointment, type DoctorOption, STATUS_TONE } from "./types";
+import { allowsArea } from "@/lib/auth/screen-registry";
 
 function dateTimeLabel(iso: string): string {
   const instant = new Date(iso);
@@ -218,7 +219,7 @@ function DetailBody({
             settings={settings}
             doctors={doctors}
             canWrite={canWrite}
-            canPrice={permissions.includes("appointment.price")}
+            canPrice={allowsArea(permissions, "appointment.price")}
             today={today}
             onSaved={() => {
               setEditing(false);

@@ -28,6 +28,7 @@ import {
 import { bucketLabel, type Period, periodError, PERIOD_PRESETS, type PeriodPreset, presetPeriod, STATS_UNITS } from "./period";
 import { PerformanceView } from "./performance-view";
 import { RateChart } from "./rate-chart";
+import { allowsArea } from "@/lib/auth/screen-registry";
 
 /**
  * 통계 대시보드 — T7-2 (원장·관리자). 데이터는 GET /api/stats 한 번으로 읽는다.
@@ -41,7 +42,7 @@ export function StatsDashboard() {
     if (me.error instanceof ApiRequestError && me.error.status === 403) return <NoPermission />;
     return <LoadError message={me.error instanceof ApiRequestError ? me.error.message : undefined} onRetry={() => me.refetch()} />;
   }
-  if (!me.data.permissions.includes("stats.read")) return <NoPermission />;
+  if (!allowsArea(me.data.permissions, "stats.view")) return <NoPermission />;
   return <StatsTabs />;
 }
 

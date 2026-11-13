@@ -10,6 +10,7 @@ import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import type { PatientAppointmentItem, PatientDetail as Detail } from "@/server/patients/service";
 import { Badge, Button, Card, CardTitle, EmptyState, Spinner, Table, TBody, Td, Th, THead, Tr } from "@/components/ui";
 import { PatientForm } from "./patient-form";
+import { Allowed } from "@/components/auth/access";
 
 type DetailResponse = { patient: Detail; appointments: PatientAppointmentItem[] };
 
@@ -51,9 +52,11 @@ export function PatientDetail({ id }: { id: string }) {
           {patient.noShowCount > 0 && <Badge tone="danger">노쇼 {patient.noShowCount}회</Badge>}
         </div>
         {!editing && (
-          <Button size="lg" variant="secondary" onClick={() => setEditing(true)}>
-            수정
-          </Button>
+          <Allowed area="patients.edit">
+            <Button size="lg" variant="secondary" onClick={() => setEditing(true)}>
+              수정
+            </Button>
+          </Allowed>
         )}
       </div>
 
