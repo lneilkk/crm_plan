@@ -5,11 +5,13 @@ import {
   DEPARTMENTS,
   departmentOf,
   hasPermission,
-  JOB_PERMISSIONS,
+  isPermission,
+  INITIAL_JOB_PERMISSIONS,
   LEGACY_ROLE_EXTRAS,
   navSectionsFor,
   PERMISSION_NAMES,
   type Permission,
+  PERMISSION_MANAGER,
   permissionsOf,
 } from "./permissions";
 
@@ -38,6 +40,11 @@ const LEGACY: Record<Permission, [boolean, boolean, boolean, boolean, boolean]> 
 const ROLE_ORDER: StaffRole[] = ["FRONT", "COUNSELOR", "DOCTOR", "NURSE", "ADMIN"];
 const legacySetOf = (role: StaffRole) =>
   PERMISSION_NAMES.filter((permission) => LEGACY[permission][ROLE_ORDER.indexOf(role)]);
+/** S-2b 이후: 직무 권한은 DB(job_permission)에서 온다. 첫 설치 때 DB에 들어가는 값이 INITIAL_JOB_PERMISSIONS */
+const legacyAccess = (role: StaffRole) => ({
+  jobPermissions: INITIAL_JOB_PERMISSIONS[role],
+  extraPermissions: LEGACY_ROLE_EXTRAS[role],
+});
 
 describe("권한 목록", () => {
   it("S-2 전과 같은 권한 15개, 역할 5개", () => {
@@ -62,17 +69,17 @@ describe("부서와 직무", () => {
     expect(departmentOf("ADMIN")).toBe("OPERATIONS");
   });
 
-  it("의사 직무 기본값에는 통계·상담 보기가 없다 — 원장에게만 개인 추가 권한으로 준다", () => {
-    expect(JOB_PERMISSIONS.DOCTOR).not.toContain("stats.read");
-    expect(JOB_PERMISSIONS.DOCTOR).not.toContain("consult.read");
-    expect(JOB_PERMISSIONS.DOCTOR).toContain("surgery.note");
+  it("의사 직무 초기값에는 통계·상담 보기가 없다 — 원장에게만 개인 추가 권한으로 준다", () => {
+    expect(INITIAL_JOB_PERMISSIONS.DOCTOR).not.toContain("stats.read");
+    expect(INITIAL_JOB_PERMISSIONS.DOCTOR).not.toContain("consult.read");
+    expect(INITIAL_JOB_PERMISSIONS.DOCTOR).toContain("surgery.note");
   });
 });
 
 describe("변환 전후 사람별 권한이 같다 (S-2 완료 기준)", () => {
   for (const role of ROLE_ORDER) {
-    it(`${role}: 직무 기본값 + 변환 때 준 추가 권한 = S-2 전 권한`, () => {
-      expect(permissionsOf({ role, extraPermissions: LEGACY_ROLE_EXTRAS[role] })).toEqual(legacySetOf(role));
+    it(`${role}: 직무 초기값 + 변환 때 준 추가 권한 = S-2 전 권한`, () => {
+      expect(permissionsOf(legacyAccess(role))).toEqual(legacySetOf(role));
     });
   }
 
@@ -80,19 +87,19 @@ describe("변환 전후 사람별 권한이 같다 (S-2 완료 기준)", () => {
     ROLE_ORDER.forEach((role, index) => {
       const expected = LEGACY[permission][index];
       it(`${role} × ${permission} → ${expected ? "허용" : "거부"}`, () => {
-        expect(hasPermission({ role, extraPermissions: LEGACY_ROLE_EXTRAS[role] }, permission)).toBe(expected);
+        expect(hasPermission(legacyAccess(role), permission)).toBe(expected);
       });
     });
   }
 
   it("변환 때 준 추가 권한은 직무 기본값과 겹치지 않는다 (필요한 것만 줌)", () => {
     for (const role of ROLE_ORDER) {
-      for (const extra of LEGACY_ROLE_EXTRAS[role]) expect(JOB_PERMISSIONS[role]).not.toContain(extra);
+      for (const extra of LEGACY_ROLE_EXTRAS[role]) expect(INITIAL_JOB_PERMISSIONS[role]).not.toContain(extra);
     }
   });
 
   it("메뉴도 S-2 전과 같다", () => {
-    const menu = (role: StaffRole) => navSectionsFor({ role, extraPermissions: LEGACY_ROLE_EXTRAS[role] });
+    const menu = (role: StaffRole) => navSectionsFor(permissionsOf(legacyAccess(role)));
     expect(menu("FRONT")).toEqual(["board", "calendar", "patients"]);
     expect(menu("COUNSELOR")).toEqual(["board", "calendar", "consult", "patients"]);
     expect(menu("DOCTOR")).toEqual(["board", "calendar", "consult", "patients", "stats"]);
@@ -102,25 +109,48 @@ describe("변환 전후 사람별 권한이 같다 (S-2 완료 기준)", () => {
 });
 
 describe("개인 추가 권한", () => {
-  it("추가 권한은 직무 기본값에 더해진다", () => {
-    expect(hasPermission({ role: "NURSE", extraPermissions: [] }, "stats.read")).toBe(false);
-    expect(hasPermission({ role: "NURSE", extraPermissions: ["stats.read"] }, "stats.read")).toBe(true);
-    expect(navSectionsFor({ role: "DOCTOR", extraPermissions: [] })).toEqual(["board", "calendar", "patients"]);
+  it("추가 권한은 직무 권한에 더해진다", () => {
+    expect(hasPermission({ jobPermissions: INITIAL_JOB_PERMISSIONS.NURSE, extraPermissions: [] }, "stats.read")).toBe(false);
+    expect(hasPermission({ jobPermissions: INITIAL_JOB_PERMISSIONS.NURSE, extraPermissions: ["stats.read"] }, "stats.read")).toBe(true);
+    expect(navSectionsFor(permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: [] }))).toEqual([
+      "board",
+      "calendar",
+      "patients",
+    ]);
   });
 
   it("모르는 이름은 무시하고(기본 거부), 겹친 것은 한 번만, 순서는 권한 목록 순서", () => {
-    const result = permissionsOf({ role: "FRONT", extraPermissions: ["patient.delete", "stats.read", "stats.read", "constructor"] });
-    expect(result).toContain("stats.read");
-    expect(result.filter((p) => p === "stats.read")).toHaveLength(1);
-    expect(result).not.toContain("patient.delete");
-    expect(result).toEqual(PERMISSION_NAMES.filter((p) => result.includes(p)));
+    const result = permissionsOf({
+      jobPermissions: ["patient.read", "audit_log.delete"],
+      extraPermissions: ["patient.delete", "stats.read", "stats.read", "constructor"],
+    });
+    expect(result).toEqual(["patient.read", "stats.read"]);
   });
 
-  it("표에 없는 권한·직무는 거부한다", () => {
-    expect(hasPermission({ role: "ADMIN", extraPermissions: [] }, "patient.delete" as Permission)).toBe(false);
-    expect(hasPermission({ role: "OWNER" as StaffRole, extraPermissions: [] }, "patient.read")).toBe(false);
-    expect(hasPermission({ role: "OWNER" as StaffRole, extraPermissions: ["patient.read"] }, "patient.read")).toBe(false);
-    expect(hasPermission({ role: "ADMIN", extraPermissions: [] }, "constructor" as Permission)).toBe(false);
-    expect(permissionsOf({ role: "OWNER" as StaffRole, extraPermissions: ["stats.read"] })).toEqual([]);
+  it("표에 없는 권한은 거부한다", () => {
+    const all = { jobPermissions: PERMISSION_NAMES, extraPermissions: [] };
+    expect(hasPermission(all, "patient.delete" as Permission)).toBe(false);
+    expect(hasPermission(all, "constructor" as Permission)).toBe(false);
+  });
+});
+
+describe("설정으로 풀 수 없는 규칙 (S-2b)", () => {
+  it("직무 권한도 추가 권한도 없으면 아무 권한이 없다 — 새 권한은 DB에 켜기 전까지 아무도 갖지 않는다", () => {
+    expect(permissionsOf({ jobPermissions: [], extraPermissions: [] })).toEqual([]);
+    expect(navSectionsFor([])).toEqual([]);
+  });
+
+  it("감사 로그·내원 상태 이력을 고치거나 지우는 권한은 존재하지 않는다 (절대 규칙 5)", () => {
+    for (const name of PERMISSION_NAMES) {
+      expect(name).not.toMatch(/audit|status_?log|history/i);
+    }
+    for (const name of ["audit_log.delete", "audit_log.update", "visit_status_log.delete", "visit_status_log.update"]) {
+      expect(isPermission(name)).toBe(false);
+    }
+  });
+
+  it("관리자(운영)의 초기값은 모든 권한이다 — 처음 설치한 병원이 권한 관리자 없이 시작하지 않게", () => {
+    expect([...INITIAL_JOB_PERMISSIONS.ADMIN].sort()).toEqual([...PERMISSION_NAMES].sort());
+    expect(INITIAL_JOB_PERMISSIONS.ADMIN).toContain(PERMISSION_MANAGER);
   });
 });

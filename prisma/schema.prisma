@@ -183,6 +183,18 @@ model Consent {
 // 직원·세션
 // ---------------------------------------------------------------------------
 
+/// 직무별 권한 (확장 계획 S-2b). 기획서 6장에 없음 — 직무별 권한을 관리자가 편집할 수 있게 DB에 둔다.
+/// 첫 설치 값은 마이그레이션이 한 번만 넣는다(src/lib/auth/permissions.ts INITIAL_JOB_PERMISSIONS). 행이 있으면 그 직무가 그 권한을 가진다.
+model JobPermission {
+  id         String    @id @default(uuid(7)) @db.Uuid // id
+  role       StaffRole // 직무
+  permission String // 권한 이름 (모르는 이름은 무시된다)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3) // 켠 시각
+
+  @@unique([role, permission])
+  @@map("job_permission")
+}
+
 /// 직원 (기획서 6장 staff). 권한 체크 기준.
 model Staff {
   id               String    @id @default(uuid(7)) @db.Uuid // id

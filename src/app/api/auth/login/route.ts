@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { loadPermissions } from "@/server/auth/access";
 import { meOf } from "@/server/auth/me";
 import { defineRoute } from "@/server/api/define-route";
 import { ApiError } from "@/server/api/errors";
@@ -37,7 +38,7 @@ export const POST = defineRoute({
     }
     const { staff } = result;
     return Response.json(
-      { staff: meOf(staff) },
+      { staff: meOf({ ...staff, permissions: await loadPermissions(staff) }) },
       { headers: { "Set-Cookie": sessionCookieHeader(result.token, result.expiresAt) } },
     );
   },

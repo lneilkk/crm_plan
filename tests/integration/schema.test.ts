@@ -140,6 +140,8 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
   // F-11(피드백): 수술 참여 직원, 수술 메모(원장·관리자만)
   appointment_participant: ["appointment_id", "staff_id", "created_at"],
   surgery_note: ["appointment_id", "content", "updated_by_id", "updated_at"],
+  // 확장 계획 S-2b: 직무별 권한 (관리자가 편집)
+  job_permission: ["id", "role", "permission", "created_at"],
 };
 
 /** 주민등록번호·진료기록(진단·처방)을 떠올리게 하는 이름 (절대 규칙 3) */
@@ -161,7 +163,7 @@ beforeEach(async () => {
 });
 
 describe("테이블과 컬럼 (기획서 6장)", () => {
-  it("테이블은 정해진 것뿐이다: 기획서 6장의 9개 + 피드백 F-2·F-11의 4개 (Prisma 마이그레이션 기록 테이블 제외)", async () => {
+  it("테이블은 정해진 것뿐이다: 기획서 6장의 9개 + 피드백 F-2·F-11의 4개 + 확장 계획 S-2b의 1개 (Prisma 마이그레이션 기록 테이블 제외)", async () => {
     const rows = await db.$queryRaw<{ table_name: string }[]>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> '_prisma_migrations'

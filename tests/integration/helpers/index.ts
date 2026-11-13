@@ -9,6 +9,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { kstDateTime } from "@/lib/time/kst";
 import { db } from "@/server/db";
 import { assertTestDatabaseUrl } from "../support/test-db";
+import { INITIAL_JOB_PERMISSIONS } from "@/lib/auth/permissions";
+import { STAFF_ROLES } from "@/lib/domain/staff";
 
 export { db };
 
@@ -34,6 +36,10 @@ export async function resetDb(): Promise<void> {
   if (tables.length === 0) return;
   const list = tables.map(({ tablename }) => `"public"."${tablename.replaceAll('"', '""')}"`).join(", ");
   await db.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+  // 직무별 권한(S-2b)은 첫 설치 때 마이그레이션이 넣는 값으로 되돌린다 — 실제 DB와 같은 출발점
+  await db.jobPermission.createMany({
+    data: STAFF_ROLES.flatMap((role) => INITIAL_JOB_PERMISSIONS[role].map((permission) => ({ role, permission }))),
+  });
 }
 
 export function createStaff(overrides: Partial<Prisma.StaffUncheckedCreateInput> = {}) {

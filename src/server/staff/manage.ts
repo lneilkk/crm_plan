@@ -3,6 +3,7 @@ import "server-only";
 import { checkPasswordPolicy } from "@/lib/auth/password-policy";
 import type { StaffRole } from "@/lib/domain/staff";
 import { ApiError } from "@/server/api/errors";
+import { assertPermissionManagerRemains, lockPermissionChanges } from "@/server/auth/access";
 import { hashPassword } from "@/server/auth/password";
 import type { DbClient } from "@/server/db";
 
@@ -10,7 +11,9 @@ import type { DbClient } from "@/server/db";
  * 직원 계정 관리 — F-14(Task.md T2-5 일부), 관리자만(route의 staff.manage).
  * - 비활성화하면 그 직원의 세션을 바로 끊는다(T2-5 완료 기준). 직원은 지우지 않는다(기록 보존).
  * - 비밀번호 초기화: 관리자가 정한 임시 비밀번호(비밀번호 규칙 적용), 잠금 해제, 기존 세션 끊기.
- * - 자기 자신의 역할을 바꾸거나 비활성화할 수 없고, 마지막 활성 관리자를 없앨 수 없다(관리자가 사라지는 사고 방지).
+ * - 자기 자신의 역할을 바꾸거나 비활성화할 수 없다.
+ * - 권한 관리 권한(staff.manage)을 가진 활성 직원이 0명이 되는 변경은 거부한다(S-2b, 설정으로 풀 수 없음).
+ *   직무 이름이 아니라 실제 권한(DB 직무 권한 ∪ 개인 추가 권한)으로 센다. 변경 후 같은 트랜잭션에서 확인하고 실패하면 되돌린다.
  * - 역할 변경 이력은 감사 로그(STAFF_UPDATE, fromRole→toRole)에 남는다.
  * - 비밀번호 원문은 어디에도 남기지 않는다.
  */
@@ -77,13 +80,9 @@ export async function updateStaffAccount(
   if (self && input.role !== undefined && input.role !== staff.role) {
     throw new ApiError(409, "CANNOT_CHANGE_SELF", "자기 계정의 역할은 바꿀 수 없습니다.");
   }
-  const losingAdmin =
-    staff.role === "ADMIN" && staff.isActive && (input.isActive === false || (input.role !== undefined && input.role !== "ADMIN"));
-  if (losingAdmin) {
-    const admins = await client.staff.count({ where: { role: "ADMIN", isActive: true } });
-    if (admins <= 1) throw new ApiError(409, "LAST_ADMIN", "마지막 관리자는 비활성화하거나 역할을 바꿀 수 없습니다.");
-  }
   if (input.password !== undefined) assertPassword(input.password, staff.loginId);
+  const affectsPermissions = input.isActive !== undefined || (input.role !== undefined && input.role !== staff.role);
+  if (affectsPermissions) await lockPermissionChanges(client);
 
   await client.staff.update({
     where: { id },
@@ -96,6 +95,7 @@ export async function updateStaffAccount(
         : {}),
     },
   });
+  if (affectsPermissions) await assertPermissionManagerRemains(client);
   // 비활성화·비밀번호 초기화는 그 직원의 열린 세션을 모두 끊는다.
   let sessionsRevoked = 0;
   if (input.isActive === false || input.password !== undefined) {

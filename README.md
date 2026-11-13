@@ -47,7 +47,7 @@ npm run dev      # http://localhost:3100
 | `counselor1` | 상담 · 상담 | |
 | `nurse1` | 진료 · 간호 | |
 
-권한은 직무 기본값에 개인 추가 권한을 더한 것이다. 표는 `src/lib/auth/permissions.ts` 한 곳에 있다.
+권한은 직무별 권한(DB의 `job_permission`, 관리자가 편집)에 개인 추가 권한을 더한 것이다. 권한의 종류와 처음 설치할 때의 값은 `src/lib/auth/permissions.ts`에 있고, 첫 설치 값은 마이그레이션이 한 번만 넣는다(시드는 덮어쓰지 않음).
 
 - 계정은 `.env`에 `FAKE_DATA_ALLOWED=true`가 있을 때만 만든다. 실제 운영 환경에는 이 변수를 두지 않으므로 테스트 계정이 생기지 않는다(병원 설정만 만든다).
 - 다시 실행하면 같은 아이디의 비밀번호를 현재 `SEED_STAFF_PASSWORD`로 다시 정하고, 잠금·실패 횟수를 풀고, 다시 활성화한다. 계정은 늘어나지 않는다.

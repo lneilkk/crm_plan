@@ -1,16 +1,18 @@
 /**
- * 권한·부서·직무 — 기획서 10장(업무별 최소 권한), T2-4, 확장 계획 S-2.
+ * 권한·부서·직무 — 기획서 10장(업무별 최소 권한), T2-4, 확장 계획 S-2·S-2b.
  *
- * 서버·브라우저 공용. 권한은 이 파일 한 곳에만 정의한다.
+ * 서버·브라우저 공용. 프로그램에 두는 것은 "권한의 종류"(PERMISSIONS)와 처음 설치할 때의 값뿐이다.
  * - 권한: 작은 단위의 능력. API는 역할이 아니라 권한 이름으로 선언한다(defineRoute의 permission).
- * - 직무: staff.role 값(프론트·상담·의사·간호·관리자). 직무마다 기본 권한이 있다(JOB_PERMISSIONS).
+ * - 직무: staff.role 값(프론트·상담·의사·간호·관리자). 직무별 권한은 DB(job_permission)에 있고 관리자가 바꾼다(S-7).
+ *   INITIAL_JOB_PERMISSIONS는 첫 설치 때 마이그레이션이 DB에 한 번만 넣은 값이다. 실행 중에는 DB가 기준이다.
  * - 부서: 직무의 묶음(프론트·상담·진료·운영). 직무에서 정해지므로 따로 저장하지 않는다.
- *   부서별 첫 화면·메뉴는 S-4에서 붙인다.
- * - 개인 추가 권한: staff.extra_permissions. 직무 기본값에 더해진다. 빼는 기능은 없다.
+ * - 개인 추가 권한: staff.extra_permissions. 직무 권한에 더해진다. 빼는 기능은 없다.
  *
- * 한 사람의 권한 = 직무 기본값 ∪ 개인 추가 권한(아는 이름만). permissions.test.ts가 S-2 전 표와 같음을 검사한다.
+ * 한 사람의 권한 = DB의 직무 권한 ∪ 개인 추가 권한 (아는 이름만). 서버가 계산한다(src/server/auth/access.ts).
+ * 설정으로 풀 수 없는 규칙(CHECKLIST.md S 절): 권한 관리자 0명 방지, 로그 수정·삭제 권한 없음, 새 권한은 기본 꺼짐.
+ * 새 권한을 PERMISSIONS에 더해도 DB에 켜기 전까지 아무도 갖지 않는다.
  */
-import { STAFF_ROLES, type StaffRole } from "@/lib/domain/staff";
+import type { StaffRole } from "@/lib/domain/staff";
 
 /** 권한 이름과 화면에 보일 설명 */
 export const PERMISSIONS = {
@@ -62,8 +64,14 @@ export function departmentOf(job: StaffRole): Department {
 
 const EVERYONE_READS = ["patient.read", "appointment.read", "settings.read", "staff.read", "surgery.record"] as const;
 
-/** 직무별 기본 권한 */
-export const JOB_PERMISSIONS = {
+/** 권한 관리 권한 — 이 권한을 가진 활성 직원이 0명이 되는 변경은 거부한다 */
+export const PERMISSION_MANAGER = "staff.manage" satisfies Permission;
+
+/**
+ * 처음 설치할 때의 직무별 권한. 마이그레이션 20261113010000_job_permission이 DB에 같은 값을 한 번만 넣는다
+ * (tests/integration/job-permission.test.ts가 SQL을 돌려 확인). 시드·재배포는 DB 값을 덮어쓰지 않는다.
+ */
+export const INITIAL_JOB_PERMISSIONS = {
   FRONT: [...EVERYONE_READS, "patient.write", "appointment.write", "visit.write"],
   COUNSELOR: [...EVERYONE_READS, "patient.write", "appointment.write", "visit.write", "consult.read", "consult.write"],
   /** 원장의 통계·상담 보기는 개인 추가 권한으로 준다(사용자 결정 2026-11-13) */
@@ -86,13 +94,12 @@ export const LEGACY_ROLE_EXTRAS = {
   ADMIN: [],
 } as const satisfies Record<StaffRole, readonly Permission[]>;
 
-/** 권한 계산에 필요한 직원 정보 */
-export type StaffAccess = { role: StaffRole; extraPermissions: readonly string[] };
+/** 권한 계산에 필요한 값: DB의 직무 권한(job_permission)과 개인 추가 권한 */
+export type StaffAccess = { jobPermissions: readonly string[]; extraPermissions: readonly string[] };
 
-/** 한 사람의 권한 (권한 목록 순서, 겹침 없음). 모르는 직무는 아무 권한도 없다(기본 거부). */
+/** 한 사람의 권한 (권한 목록 순서, 겹침 없음). 모르는 이름은 무시한다(기본 거부). */
 export function permissionsOf(access: StaffAccess): Permission[] {
-  if (!STAFF_ROLES.includes(access.role)) return [];
-  const granted = new Set<string>([...JOB_PERMISSIONS[access.role], ...access.extraPermissions]);
+  const granted = new Set<string>([...access.jobPermissions, ...access.extraPermissions]);
   return PERMISSION_NAMES.filter((permission) => granted.has(permission));
 }
 
@@ -114,8 +121,7 @@ export const NAV_SECTIONS = [
 
 export type NavSectionKey = (typeof NAV_SECTIONS)[number]["key"];
 
-/** 그 사람이 볼 수 있는 메뉴 구역 키 (NAV_SECTIONS 순서) */
-export function navSectionsFor(access: StaffAccess): NavSectionKey[] {
-  const granted = permissionsOf(access);
-  return NAV_SECTIONS.filter((section) => granted.includes(section.permission)).map((section) => section.key);
+/** 그 권한으로 볼 수 있는 메뉴 구역 키 (NAV_SECTIONS 순서) */
+export function navSectionsFor(permissions: readonly Permission[]): NavSectionKey[] {
+  return NAV_SECTIONS.filter((section) => permissions.includes(section.permission)).map((section) => section.key);
 }

@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { GET as meRoute } from "@/app/api/auth/me/route";
 import { GET as consultListRoute } from "@/app/api/consultations/route";
 import { GET as statsRoute } from "@/app/api/stats/route";
-import { LEGACY_ROLE_EXTRAS, permissionsOf } from "@/lib/auth/permissions";
+import { INITIAL_JOB_PERMISSIONS, LEGACY_ROLE_EXTRAS, permissionsOf } from "@/lib/auth/permissions";
 import { STAFF_ROLES } from "@/lib/domain/staff";
 import { callRoute, loginAs } from "./helpers/api";
 import { createStaff, db, resetDb } from "./helpers";
@@ -62,8 +62,8 @@ describe("변환 마이그레이션 (S-2)", () => {
       const r = role as (typeof STAFF_ROLES)[number];
       expect(extras, `${role} 추가 권한`).toEqual([...LEGACY_ROLE_EXTRAS[r]]);
       // 단위 테스트(permissions.test.ts)가 이 값이 S-2 전 표와 같음을 증명한다
-      expect(permissionsOf({ role: r, extraPermissions: extras })).toEqual(
-        permissionsOf({ role: r, extraPermissions: LEGACY_ROLE_EXTRAS[r] }),
+      expect(permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS[r], extraPermissions: extras })).toEqual(
+        permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS[r], extraPermissions: LEGACY_ROLE_EXTRAS[r] }),
       );
     }
     expect(await db.staff.count({ where: { loginId: { startsWith: "legacy-" } } })).toBe(0);
@@ -133,7 +133,7 @@ describe("GET /api/auth/me", () => {
     const { status, json } = await callRoute(meRoute, { url: "/api/auth/me", cookie: nurse.cookie });
     expect(status).toBe(200);
     expect(json).toMatchObject({ role: "NURSE", department: "CLINICAL", navSections: ["board", "calendar", "patients"] });
-    expect(json.permissions).toEqual(permissionsOf({ role: "NURSE", extraPermissions: [] }));
+    expect(json.permissions).toEqual(permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.NURSE, extraPermissions: [] }));
     expect(json).not.toHaveProperty("extraPermissions");
 
     const director = await loginAs("DOCTOR");

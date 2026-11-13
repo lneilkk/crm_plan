@@ -4,6 +4,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import type { StaffRole } from "@/lib/domain/staff";
 import { db, type DbClient } from "@/server/db";
+import type { Permission } from "@/lib/auth/permissions";
+import { loadPermissions } from "./access";
 
 /**
  * 서버 세션 — 기획서 10장, T2-1(로그인), T2-3(세션 만료, 나중에).
@@ -28,8 +30,8 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 export type SessionStaff = {
   id: string;
   role: StaffRole;
-  /** 개인 추가 권한 (확장 계획 S-2). 권한 계산은 permissionsOf/hasPermission으로만 한다 */
-  extraPermissions: string[];
+  /** 이 사람의 권한 = DB 직무 권한 ∪ 개인 추가 권한. 요청마다 새로 계산한다 (src/server/auth/access.ts) */
+  permissions: Permission[];
   name: string;
   loginId: string;
 };
@@ -119,7 +121,8 @@ export async function getActiveSession(request: Request, now: Date = new Date())
   }
 
   const { id, role, extraPermissions, name, loginId } = session.staff;
-  return { sessionId: session.id, staff: { id, role, extraPermissions, name, loginId } };
+  const permissions = await loadPermissions({ role, extraPermissions });
+  return { sessionId: session.id, staff: { id, role, permissions, name, loginId } };
 }
 
 /** 요청을 보낸 직원. 세션이 없거나 만료·로그아웃·비활성이면 null */
