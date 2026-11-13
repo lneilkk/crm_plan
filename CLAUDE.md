@@ -18,6 +18,9 @@
 | `docs/Task.md` | Task 목록, 완료 기준, 라운드(R1~R4) 순서 (사용자가 직접 관리) |
 | `docs/CHECKLIST.md` | 진행 현황 (✅ 완료 / 🔄 진행중 / ⬜ 미완) |
 | `docs/FEEDBACK.md` | 직원 피드백 기록 (R2부터 작성) |
+| `docs/REPORT.md` | 개발 현황 보고서 (진행 현황, 기능, 보안, 남은 일) |
+| `docs/EXPANSION.md` | 확장 계획 (화면·권한 구조 정리 S, 메시지 발송 M, 외부 예약 B, EMR 판단). S Task 진행 순서의 기준 |
+| `docs/SCREEN_MAP.md` | 화면·메뉴·버튼과 API별 필요 권한 지도 (S-1) |
 
 ## 작업 방식
 
