@@ -5,6 +5,7 @@ import { defineRoute } from "@/server/api/define-route";
 import { ApiError } from "@/server/api/errors";
 import { login } from "@/server/auth/login";
 import { sessionCookieHeader, sessionTokenFrom } from "@/server/auth/session";
+import { getDepartmentHomes } from "@/server/settings/department-homes";
 
 const LoginBody = z.object({
   loginId: z.string().trim().min(1).max(64),
@@ -38,7 +39,7 @@ export const POST = defineRoute({
     }
     const { staff } = result;
     return Response.json(
-      { staff: meOf({ ...staff, permissions: await loadPermissions(staff) }) },
+      { staff: meOf({ ...staff, permissions: await loadPermissions(staff) }, await getDepartmentHomes()) },
       { headers: { "Set-Cookie": sessionCookieHeader(result.token, result.expiresAt) } },
     );
   },

@@ -9,6 +9,7 @@ import { TreatmentItemsEditor } from "@/components/calendar/treatment-items-edit
 import { ChairsEditor } from "./chairs-editor";
 import { ClinicRulesEditor } from "./clinic-rules-editor";
 import { ConsultOutcomesEditor } from "./consult-outcomes-editor";
+import { DepartmentHomesEditor } from "./department-homes-editor";
 import { StaffEditor } from "./staff-editor";
 
 const SECTIONS = [
@@ -19,6 +20,7 @@ const SECTIONS = [
   { key: "consult", label: "상담 결과" },
   { key: "rules", label: "진료시간·기준" },
   { key: "staff", label: "직원" },
+  { key: "homes", label: "부서별 첫 화면" },
 ] as const;
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
@@ -62,6 +64,7 @@ export function SettingsEditor({
         {section === "rules" && <ClinicRulesEditor settings={settings} onSaved={onSaved} />}
         {section === "consult" && <ConsultOutcomesEditor onSaved={onSaved} />}
         {section === "staff" && <StaffEditor onSaved={onSaved} />}
+        {section === "homes" && <DepartmentHomesEditor onSaved={onSaved} />}
       </div>
     </div>
   );

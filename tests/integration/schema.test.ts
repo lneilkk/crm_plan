@@ -130,6 +130,8 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     "treatment_item_meta",
     // F-10(피드백): 상담 결과 분류 목록
     "consult_outcomes",
+    // 확장 계획 S-4: 부서별 첫 화면
+    "department_homes",
     "updated_by_id",
     "updated_at",
   ],

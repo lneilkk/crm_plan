@@ -20,13 +20,23 @@ function password(): string {
   return value;
 }
 
-/** 로그인 화면으로 로그인하고 내원 보드에 도착할 때까지 기다린다. */
+/** 각 시험 계정의 첫 화면 (부서별 첫 화면 초기값, S-4) */
+export const HOME_OF: Record<LoginId, string> = {
+  front1: "/board",
+  counselor1: "/consult",
+  doctor1: "/calendar",
+  doctor2: "/calendar",
+  nurse1: "/calendar",
+  admin: "/stats",
+};
+
+/** 로그인 화면으로 로그인하고 그 사람의 첫 화면(부서별, S-4)에 도착할 때까지 기다린다. */
 export async function login(page: Page, loginId: LoginId): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("아이디").fill(loginId);
   await page.getByLabel("비밀번호").fill(password());
   await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/board$/);
+  await expect(page).toHaveURL(new RegExp(`${HOME_OF[loginId]}$`));
   await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
 }
 

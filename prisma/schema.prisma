@@ -349,6 +349,7 @@ model ClinicSetting {
   treatmentItems    Json     @map("treatment_items") @db.JsonB // 예약 항목 목록 — string[]
   treatmentItemMeta Json?    @map("treatment_item_meta") @db.JsonB // 예약 항목별 구분(고가·일반)·단가 — TreatmentItemMeta (F-5·F-6). 없으면 기본값
   consultOutcomes   Json?    @map("consult_outcomes") @db.JsonB // 상담 결과 분류 — ConsultOutcome[] (F-10). 없으면 기본값
+  departmentHomes   Json     @default("{\"FRONT\": \"/board\", \"CONSULT\": \"/consult\", \"CLINICAL\": \"/calendar\", \"OPERATIONS\": \"/stats\"}") @map("department_homes") @db.JsonB // 부서별 첫 화면(확장 계획 S-4). 기본값은 첫 설치 값(INITIAL_DEPARTMENT_HOMES), 이후 관리자가 편집
   statusStyles      Json?    @map("status_styles") @db.JsonB // 예약 상태별 캘린더 표시 이름·색 — StatusStyles (F-2). 없으면 기본값
   updatedById       String?  @map("updated_by_id") @db.Uuid // 마지막으로 바꾼 직원
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3) // 수정 시각

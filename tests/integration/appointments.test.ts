@@ -15,6 +15,7 @@ import { ApiError } from "@/server/api/errors";
 import { sealPhone } from "@/server/crypto/pii";
 import { callRoute, loginAs } from "./helpers/api";
 import { createAppointment as insertAppointmentRow, createPatient, createStaff, db, resetDb } from "./helpers";
+import { INITIAL_DEPARTMENT_HOMES } from "@/lib/auth/screen-registry";
 
 beforeAll(() => {
   // 키는 실행마다 새로 만든다. 저장소에는 키 문자열을 두지 않는다.
@@ -490,7 +491,8 @@ describe("GET /api/settings", () => {
     const { cookie } = await loginAs("DOCTOR");
     const res = await callRoute(settingsRoute, { url: "/api/settings", cookie });
     expect(res.status).toBe(200);
-    expect(res.json).toEqual(DEFAULT_CLINIC_SETTINGS);
+    // 부서별 첫 화면(S-4)도 함께 온다 — 설정 행 기본값(첫 설치 값)
+    expect(res.json).toEqual({ ...DEFAULT_CLINIC_SETTINGS, departmentHomes: INITIAL_DEPARTMENT_HOMES });
   });
 
   it("설정 행이 없으면 500과 안내 문구", async () => {

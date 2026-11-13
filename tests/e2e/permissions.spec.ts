@@ -5,8 +5,7 @@ test.describe("권한", () => {
   test("프론트가 통계 화면을 열면 권한 없음 안내만 보인다", async ({ page }) => {
     await login(page, "front1");
     await page.goto("/stats");
-    await expect(page.getByText("권한이 없습니다")).toBeVisible();
-    await expect(page.getByText("통계는 원장과 관리자만 볼 수 있습니다.")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "이 화면을 볼 권한이 없습니다" })).toContainText("통계·실적 보기");
     await expect(page.getByRole("heading", { name: "내원 통계" })).toHaveCount(0);
     await expect(page.getByText("실내원율")).toHaveCount(0);
   });

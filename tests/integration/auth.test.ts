@@ -79,6 +79,7 @@ describe("로그인 성공", () => {
       loginId: staff.loginId,
       permissions: ["patient.read", "patient.write", "appointment.read", "appointment.write", "visit.write", "settings.read", "staff.read", "surgery.record"],
       navSections: ["board", "calendar", "patients"],
+      home: "/board", // 설정 행이 없으면 첫 설치 값 (S-4)
     });
   });
 

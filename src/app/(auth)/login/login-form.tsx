@@ -6,7 +6,7 @@ import { type FormEvent, useState } from "react";
 import { apiFetch, ME_QUERY_KEY } from "@/lib/auth/api-client";
 import { Button, Card, FieldError, Input, Label } from "@/components/ui";
 
-/** 아이디·비밀번호 로그인. 성공하면 "/"(내원 보드)로 간다. 비밀번호는 상태에만 두고 어디에도 저장하지 않는다. */
+/** 아이디·비밀번호 로그인. 성공하면 그 사람의 첫 화면(부서별 설정, S-4)으로 간다. 비밀번호는 상태에만 두고 어디에도 저장하지 않는다. */
 export function LoginForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -14,11 +14,12 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
 
   const login = useMutation({
-    mutationFn: () => apiFetch("/api/auth/login", { method: "POST", body: { loginId, password } }),
-    onSuccess: () => {
+    mutationFn: () => apiFetch<{ staff: { home: string } }>("/api/auth/login", { method: "POST", body: { loginId, password } }),
+    onSuccess: ({ staff }) => {
       setPassword("");
       queryClient.removeQueries({ queryKey: ME_QUERY_KEY });
-      router.replace("/");
+      // 서버가 고를 수 있는 화면(메뉴 화면)으로만 정한 값이다. 그래도 내부 경로가 아니면 "/"로
+      router.replace(staff.home.startsWith("/") && !staff.home.startsWith("//") ? staff.home : "/");
     },
     onError: () => setPassword(""),
   });

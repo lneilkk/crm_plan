@@ -70,6 +70,8 @@ export type Me = {
   /** 이 사람의 권한 = 직무 기본값 ∪ 개인 추가 권한 (서버가 계산) */
   permissions: Permission[];
   navSections: NavSectionKey[];
+  /** 로그인 후 첫 화면 (부서별 설정, 권한 확인 후, S-4) */
+  home: string;
 };
 
 export const ME_QUERY_KEY = ["auth", "me"] as const;

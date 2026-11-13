@@ -79,8 +79,9 @@ function LoadError({ message, onRetry }: { message?: string; onRetry: () => void
   );
 }
 
+/** 화면 진입 검사(app-shell)가 먼저 막으므로 보통은 닿지 않는다. 권한 기준 문구 (S-4) */
 function NoPermission() {
-  return <EmptyState title="권한이 없습니다" description="통계는 원장과 관리자만 볼 수 있습니다." />;
+  return <EmptyState title="권한이 없습니다" description="통계·실적 보기 권한이 필요합니다. 필요하면 관리자에게 요청하세요." />;
 }
 
 function Dashboard() {

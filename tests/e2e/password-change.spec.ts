@@ -28,7 +28,7 @@ test.describe("비밀번호 변경", () => {
 
   test("상단 [비밀번호 변경]에서 바꾸면 새 비밀번호로만 로그인된다", async ({ page }) => {
     await loginWith(page, seedPw());
-    await expect(page).toHaveURL(/\/board$/);
+    await expect(page).toHaveURL(/\/calendar$/); // 의사(진료 부서)의 첫 화면 (S-4)
 
     await page.getByRole("link", { name: "비밀번호 변경" }).click();
     await expect(page.getByRole("heading", { name: "비밀번호 변경" })).toBeVisible();
@@ -53,6 +53,6 @@ test.describe("비밀번호 변경", () => {
     await loginWith(page, seedPw());
     await expect(page.getByText("아이디 또는 비밀번호가 올바르지 않습니다", { exact: false })).toBeVisible();
     await loginWith(page, newPw);
-    await expect(page).toHaveURL(/\/board$/);
+    await expect(page).toHaveURL(/\/calendar$/); // 의사(진료 부서)의 첫 화면 (S-4)
   });
 });
