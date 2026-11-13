@@ -187,9 +187,14 @@ infra/prototype/ssm-run.sh 'cd /opt/crm/app && docker compose -f docker-compose.
 
 ### 업데이트
 
+마이그레이션이 있는 업데이트 전에는 서버 DB를 먼저 백업한다(가짜 데이터라도 직접 만든 직원 계정·설정이 들어 있다). 백업은 서버의 `/opt/crm/backups/`에만 두고(권한 600) 이 PC로 내려받지 않는다.
+
 ```bash
+infra/prototype/db-backup.sh pre-<Task ID>    # 예: pre-S2 → /opt/crm/backups/pre-S2-20261113-152203.dump
 infra/prototype/ssm-run.sh 'cd /opt/crm/app && HOME=/root git pull -q && docker compose -f docker-compose.prod.yml up -d --build' 3000
 ```
+
+되돌릴 때(앱을 멈추고 백업 시점으로): `docker compose -f docker-compose.prod.yml stop app` 후 `pg_restore --clean --if-exists -d <DB>`로 복원하고, 코드도 그 시점 커밋으로 되돌려 다시 띄운다.
 
 ### 테스트 계정 비밀번호
 
