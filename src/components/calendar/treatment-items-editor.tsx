@@ -46,8 +46,10 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
   const unpriced = items.filter((item) => item.price === "" && item.name.trim());
   if (items.some((item) => !isHexColor(item.color))) problems.push("색은 #RRGGBB 형식이어야 합니다.");
 
+  /** 서버가 "단가 없이 잡힌 예약 N건에도 적용" 확인을 요청한 내용 (409 BACKFILL_CONFIRM_REQUIRED) */
+  const [backfill, setBackfill] = useState<{ total: number; items: { item: string; count: number }[] } | null>(null);
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (confirmBackfill: boolean) =>
       apiFetch("/api/settings/treatment-items", {
         method: "PUT",
         body: {
@@ -57,13 +59,24 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
             ...(canPrice ? { price: item.price === "" ? null : Number(item.price) } : {}),
             color: item.color,
           })),
+          ...(confirmBackfill ? { confirmBackfill: true } : {}),
         },
       }),
     onSuccess: async () => {
+      setBackfill(null);
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
       onSaved("예약 항목을 저장했습니다.");
     },
+    onError: (error) => {
+      if (error instanceof ApiRequestError && error.code === "BACKFILL_CONFIRM_REQUIRED") {
+        setBackfill({
+          total: Number(error.details?.total ?? 0),
+          items: (error.details?.items as { item: string; count: number }[] | undefined) ?? [],
+        });
+      }
+    },
   });
+  const otherError = save.isError && !(save.error instanceof ApiRequestError && save.error.code === "BACKFILL_CONFIRM_REQUIRED");
 
   const update = (key: string, patch: Partial<Draft>) => setItems((list) => list.map((item) => (item.key === key ? { ...item, ...patch } : item)));
   const move = (index: number, delta: number) =>
@@ -140,16 +153,39 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
         <Button variant="secondary" onClick={() => setItems((list) => [...list, { key: `i-${(seq += 1)}`, name: "", category: "GENERAL", price: "", color: "#E0E0E0" }])}>
           + 예약 항목 추가
         </Button>
-        <Button disabled={problems.length > 0 || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? "저장 중…" : "예약 항목 저장"}
-        </Button>
+        {!backfill && (
+          <Button disabled={problems.length > 0 || save.isPending} onClick={() => save.mutate(false)}>
+            {save.isPending ? "저장 중…" : "예약 항목 저장"}
+          </Button>
+        )}
         <div role="alert">
           {problems.map((problem) => (
             <FieldError key={problem}>{problem}</FieldError>
           ))}
-          {save.isError && <FieldError>{save.error instanceof ApiRequestError ? save.error.message : "저장하지 못했습니다."}</FieldError>}
+          {otherError && <FieldError>{save.error instanceof ApiRequestError ? save.error.message : "저장하지 못했습니다."}</FieldError>}
         </div>
       </div>
+      {backfill && (
+        <div role="alertdialog" aria-label="단가 적용 확인" className="mt-3 rounded-lg border-2 border-amber-400 bg-amber-50 p-3">
+          <p className="text-base font-bold text-amber-900">단가 없이 잡힌 예약 {backfill.total}건에도 이 단가가 적용됩니다</p>
+          <ul className="mt-1 list-disc pl-5 text-base text-amber-900">
+            {backfill.items.map((b) => (
+              <li key={b.item}>
+                {b.item}: {b.count}건
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-sm text-amber-900">지난 실적 금액이 바뀝니다. 적용한 사람·시각·건수는 감사 로그에 남습니다. 이미 단가가 있는 예약은 바뀌지 않습니다.</p>
+          <div className="mt-2 flex gap-2">
+            <Button disabled={save.isPending} onClick={() => save.mutate(true)}>
+              {save.isPending ? "저장 중…" : "적용하고 저장"}
+            </Button>
+            <Button variant="secondary" disabled={save.isPending} onClick={() => setBackfill(null)}>
+              취소
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

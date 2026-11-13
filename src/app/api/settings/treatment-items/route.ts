@@ -31,6 +31,8 @@ const body = z.strictObject({
     )
     .min(1)
     .max(60),
+  /** "단가 없이 잡힌 예약 N건에도 적용" 확인을 받았다 (409 BACKFILL_CONFIRM_REQUIRED를 본 뒤) */
+  confirmBackfill: z.boolean().optional(),
 });
 
 export const PUT = defineRoute({
@@ -39,8 +41,13 @@ export const PUT = defineRoute({
   body,
   handler: async (ctx) => {
     if (ctx.body.items.some((item) => item.price !== undefined)) assertCanChangePrice(ctx.staff);
-    const saved = await saveTreatmentItems(ctx.db, ctx.body.items, ctx.staff.id);
-    ctx.audit({ itemCount: ctx.body.items.length, backfilledAppointments: saved.backfilled });
+    const saved = await saveTreatmentItems(ctx.db, ctx.body.items, ctx.staff.id, ctx.body.confirmBackfill === true);
+    // 누가(staff_id)·언제(created_at)·어느 항목 몇 건에 단가를 채웠는지 (지난 실적이 바뀌는 유일한 경로)
+    ctx.audit({
+      itemCount: ctx.body.items.length,
+      backfilledAppointments: saved.backfilled.reduce((sum, b) => sum + b.count, 0),
+      backfilledItems: saved.backfilled.map((b) => `${b.item}:${b.count}`).join(","),
+    });
     return { treatmentItems: saved.treatmentItems, treatmentItemMeta: treatmentMetaForViewer(ctx.staff, saved.treatmentItemMeta) };
   },
 });

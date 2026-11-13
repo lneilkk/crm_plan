@@ -144,12 +144,29 @@ describe("단가 미입력 (0원과 구분)", () => {
     const viewer = await loginAs("FRONT", { extraPermissions: ["stats.read"] });
     expect(JSON.stringify((await perf(viewer.cookie)).json)).not.toContain("unpricedVisits");
 
-    // 관리자가 단가를 채우면 단가 없이 잡힌 예약에 채워지고, 이미 단가가 있는 예약은 그대로
+    // 관리자가 단가를 채우면: 먼저 "단가 없이 잡힌 예약 N건에도 적용" 확인을 받는다(확인 없으면 409, 아무것도 바뀌지 않음)
     const filled = items.map((item) => ({ ...item, price: item.name === "가상신규" ? 70_000 : (meta[item.name]?.price ?? 0) }));
-    expect((await callRoute(itemsRoute, { method: "PUT", url: "/api/settings/treatment-items", cookie: admin.cookie, body: { items: filled } })).status).toBe(200);
+    const putItems = (body: unknown) => callRoute(itemsRoute, { method: "PUT", url: "/api/settings/treatment-items", cookie: admin.cookie, body });
+    const ask = await putItems({ items: filled });
+    expect(ask.status).toBe(409);
+    expect(ask.json.error.code).toBe("BACKFILL_CONFIRM_REQUIRED");
+    expect(ask.json.error).toMatchObject({ total: 1, items: [{ item: "가상신규", count: 1 }] });
+    expect((await db.appointment.findUniqueOrThrow({ where: { id } })).listPrice).toBeNull();
+    expect(((await db.clinicSetting.findUniqueOrThrow({ where: { id: 1 } })).treatmentItemMeta as Record<string, { price: number | null }>)["가상신규"].price).toBeNull();
+
+    // 확인하고 저장하면 단가 없이 잡힌 예약에 채워지고, 이미 단가가 있는 예약은 그대로. 누가 몇 건에 적용했는지 감사 로그에 남는다
+    expect((await putItems({ items: filled, confirmBackfill: true })).status).toBe(200);
     expect((await db.appointment.findUniqueOrThrow({ where: { id } })).listPrice).toBe(70_000);
     expect((await db.appointment.findUniqueOrThrow({ where: { id: priced.id } })).listPrice).toBe(IMPLANT);
     expect((await perf(admin.cookie)).json.unpricedVisits).toBe(0);
+    const audit = await db.auditLog.findFirstOrThrow({ where: { action: "TREATMENT_ITEMS_UPDATE", result: "SUCCESS" }, orderBy: { createdAt: "desc" } });
+    expect(audit.staffId).toBe(admin.staff.id);
+    expect(audit.detail).toMatchObject({ backfilledAppointments: 1, backfilledItems: "가상신규:1" });
+
+    // 한 번 채워진 뒤 단가를 바꾸면 지난 예약은 그대로(예약 당시 단가)이고 확인도 필요 없다
+    const changed = filled.map((item) => (item.name === "가상신규" ? { ...item, price: 80_000 } : item));
+    expect((await putItems({ items: changed })).status).toBe(200);
+    expect((await db.appointment.findUniqueOrThrow({ where: { id } })).listPrice).toBe(70_000);
   });
 
   it("금액 권한이 있는 사람은 단가를 비워(null) 미입력으로 둘 수 있고, 미입력은 0원과 다르다", async () => {
