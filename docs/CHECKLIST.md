@@ -125,6 +125,7 @@ S Task가 끝날 때까지 새 기능은 멈추고, 새 피드백은 FEEDBACK.md
 ## R3. 보안 게이트 (가짜 데이터만)
 
 > **R3 시작 전 필수:** 시험 서버의 확인 전용 계정(직무별, 2026-11-13 결정)을 모두 삭제(비활성화)하고, `.secrets/`의 그 계정 비밀번호 파일을 지운다. 시드 시험 계정(admin·front1·counselor1·doctor1·doctor2·nurse1)도 R3 운영 환경에는 만들지 않는다(`FAKE_DATA_ALLOWED` 없음).
+
 | 상태 | ID | Task | 검증 메모 |
 | --- | --- | --- | --- |
 | ⬜ 미완 | T1-3 | 추가 전용 보장: visit_status_log·audit_log UPDATE·DELETE 차단 | |
