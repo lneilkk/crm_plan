@@ -13,6 +13,8 @@ export const SCREEN_AREAS = {
   // 내원 보드
   "board.visitActions": { label: "내원 보드 — 상태 버튼·되돌리기", permission: "visit.write" },
   "board.reschedule": { label: "내원 보드 — [예약변경]", permission: "appointment.write" },
+  /** 워크인은 예약 쓰기와 내원 상태 변경이 모두 있어야 한다 — 화면은 이 영역과 board.visitActions를 함께 묻는다 (T5-5) */
+  "board.walkIn": { label: "내원 보드 — [워크인 등록]", permission: "appointment.write" },
   // 예약 캘린더·예약 상세
   "appointment.view": { label: "예약 상세 — 기본 정보(일시·체어·담당·항목·메모·상태 이력)", permission: "appointment.read" },
   "appointment.write": { label: "예약 등록·옮기기·[고치기]·라벨·[예약변경]", permission: "appointment.write" },

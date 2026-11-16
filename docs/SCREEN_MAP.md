@@ -37,6 +37,7 @@
   - [예약변경]은 `appointment.write`(영역 `appointment.reschedule`), [취소]는 `visit.write`(영역 `appointment.cancel`)가 있어야 보인다.
   - 취소는 예약일 전이면 사전취소(확인 한 번, 사유 없음), 당일이면 당일취소(사유 필수)다. 서버도 날짜로 다시 확인한다.
   - 고객 상세의 예약 이력에 '변경 이력' 열이 생겼다. 원 예약 ↔ 새 예약 링크와, 취소·노쇼·변경을 누가 언제 왜 기록했는지 보인다.
+- **워크인 등록(T5-5):** 내원 보드 검색칸 옆 [워크인 등록]. 예약 쓰기(`appointment.write`, 영역 `board.walkIn`)와 내원 상태 변경(`visit.write`)이 모두 있어야 보인다. API `POST /api/board/walk-in`도 두 권한을 모두 확인한다.
 - 아래 본문(0~7장)은 S-1 조사 당시 기록이다.
 
 ## 0. 핵심 발견

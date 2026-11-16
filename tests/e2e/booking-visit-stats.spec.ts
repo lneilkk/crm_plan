@@ -1,24 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { formatKstDateLabel, kstWeekStart } from "@/lib/time/kst";
-import {
-  apiAs,
-  appointmentIdAt,
-  boardRow,
-  chairCodes,
-  fakeName,
-  fakePhone,
-  hasRoomInDay,
-  expectClinicOpenToday,
-  isOccupied,
-  login,
-  minutesToTime,
-  nowMinutes,
-  nowSlot,
-  slotsBackFrom,
-  summaryCount,
-  todayAppointments,
-  todayKey,
-} from "./support";
+import { apiAs, appointmentIdAt, boardRow, chairCodes, fakeName, fakePhone, hasRoomInDay, expectClinicOpenToday, isOccupied, login, minutesToTime, nowMinutes, nowSlot, slotsBackFrom, summaryCount, todayAppointments, todayKey, RESERVED_CHAIRS } from "./support";
 import { maskName } from "@/lib/masking";
 
 /** 통계 화면에서 '이번 주'를 고르고 실내원율 칸의 "내원 N / 유효 예약 M"에서 N을 읽는다. */
@@ -45,7 +27,8 @@ test.describe("예약 → 내원 → 통계", () => {
 
     // 1) 캘린더 일 보기(오늘)에서 빈 칸을 고른다. 가능하면 지금보다 이른(이미 시작한) 30분 칸
     const today = todayKey();
-    const chairs = await chairCodes(api);
+    // '지금' 자리가 꼭 필요한 시나리오 전용 체어(E4·E5)는 쓰지 않는다
+    const chairs = (await chairCodes(api)).filter((code) => !RESERVED_CHAIRS.includes(code));
     const items = await todayAppointments(api);
     await page.goto("/calendar");
     await expect(page.getByRole("heading", { name: "예약 캘린더" })).toBeVisible();

@@ -121,6 +121,12 @@ export function isOccupied(items: DayAppointment[], chair: string, start: number
 export type CreatedAppointment = { id: string; chair: string; start: number; time: string };
 
 /**
+ * '지금 시각' 자리가 꼭 필요한 시나리오 전용 체어(scripts/e2e/setup-db.ts) — E4 board-refresh, E5 walk-in.
+ * createAppointmentAt은 isFree로 직접 고르지 않는 한 이 체어를 쓰지 않는다(다른 시나리오가 자리를 먼저 채우지 않게).
+ */
+export const RESERVED_CHAIRS: readonly string[] = ["E4", "E5"];
+
+/**
  * 오늘 starts(분) 중 앞에서부터, 비어 있는 체어에 예약을 만든다. 겹침(409)이면 다음 자리로.
  */
 export async function createAppointmentAt(
@@ -137,7 +143,7 @@ export async function createAppointmentAt(
     if (start < 0 || start + durationMin > 24 * 60) continue;
     for (const chair of chairs) {
       if (isOccupied(items, chair, start, start + durationMin)) continue;
-      if (options.isFree && !options.isFree(chair, start)) continue;
+      if (options.isFree ? !options.isFree(chair, start) : RESERVED_CHAIRS.includes(chair)) continue;
       const response = await api.post("/api/appointments", {
         data: {
           patientId,

@@ -11,6 +11,7 @@ import type { BoardResponse } from "@/server/board/query";
 import type { BoardRow } from "@/server/board/rows";
 import type { PatientListItem } from "@/server/patients/service";
 import { ReasonDialog } from "./reason-dialog";
+import { WalkInDialog } from "./walk-in-dialog";
 import { RescheduleDialog, type RescheduleValues } from "./reschedule-dialog";
 import { allowsArea } from "@/lib/auth/screen-registry";
 import { useClinicSettings, useMe } from "@/components/shared/queries";
@@ -45,7 +46,7 @@ const STATUS_TONE: Partial<Record<AppointmentStatus, BadgeTone>> = {
 
 /**
  * 오늘의 내원 보드 — T5-3 (기획서 4-2).
- * - 상단 요약, 전화번호 뒷 4자리 빠른 검색, 시각순 목록, 행마다 [내원] [노쇼] [취소] [변경].
+ * - 상단 요약, 전화번호 뒷 4자리 빠른 검색, [워크인 등록](T5-5), 시각순 목록, 행마다 [내원] [노쇼] [취소] [변경].
  * - [내원]은 한 번 누르면 저장되고 5초 동안 되돌리기를 보여 준다. 노쇼·당일취소는 사유를 고르는 순간 저장된다.
  * - 버튼·지각·미확인 강조는 서버가 서버 시각으로 계산해 보낸다(GET /api/board). 5초마다, 그리고 저장할 때마다 다시 읽는다(T5-4).
  * - 예약 시각이 지나도 결과가 없으면 주황, 노쇼 유예시간까지 지나면 빨강 + 상단 알림(T5-4). 시간이 흐르면 다시 읽을 때 저절로 바뀐다.
@@ -66,6 +67,7 @@ export function BoardScreen() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [picker, setPicker] = useState<Picker | null>(null);
   const [rescheduling, setRescheduling] = useState<BoardRow | null>(null);
+  const [walkIn, setWalkIn] = useState(false);
 
   const last4 = /^\d{4}$/.test(search) ? search : null;
   // 번호 뒷 4자리만(kind=phoneLast4 — 숫자 차트번호와 섞지 않는다), 보드에 띄운 날 예약한 고객 중에서만 찾는다.
@@ -162,6 +164,8 @@ export function BoardScreen() {
 
   const canVisit = allowsArea(me.data.permissions, "board.visitActions");
   const canReschedule = allowsArea(me.data.permissions, "board.reschedule");
+  // 워크인은 예약 쓰기와 내원 상태 변경이 모두 필요하다 (T5-5)
+  const canWalkIn = canVisit && allowsArea(me.data.permissions, "board.walkIn");
   const busy = changeStatus.isPending || revert.isPending || reschedule.isPending;
   const data = board.data;
   const matched = last4 && searchResult.data ? new Set(searchResult.data.items.map((p) => p.id)) : null;
@@ -179,7 +183,14 @@ export function BoardScreen() {
         <h1 className="text-2xl font-bold">
           내원 보드 <span className="text-lg font-semibold text-slate-600">{formatKstDateLabel(data.date)}</span>
         </h1>
-        <SearchBox value={search} onChange={setSearch} />
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchBox value={search} onChange={setSearch} />
+          {canWalkIn && (
+            <Button size="lg" variant="secondary" disabled={!settings.data} onClick={() => setWalkIn(true)}>
+              워크인 등록
+            </Button>
+          )}
+        </div>
       </div>
 
       <SummaryBar summary={data.summary} />
@@ -227,6 +238,18 @@ export function BoardScreen() {
           onPick={(reasonCode) => {
             changeStatus.mutate({ row: picker.row, to: picker.to, reasonCode });
             setPicker(null);
+          }}
+        />
+      )}
+
+      {walkIn && settings.data && (
+        <WalkInDialog
+          settings={settings.data}
+          onClose={() => setWalkIn(false)}
+          onDone={(message) => {
+            setWalkIn(false);
+            show({ message, tone: "success" });
+            void refresh();
           }}
         />
       )}
