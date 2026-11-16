@@ -10,11 +10,17 @@ import type { StaffRole } from "@/lib/domain/staff";
  * 조회 키가 같아 React Query 캐시를 함께 쓴다. 환자 데이터는 여기 두지 않는다(화면마다 새로 읽는다).
  */
 const SHARED_STALE_MS = 60_000;
+const ME_REFRESH_MS = 30_000;
 
-/** 로그인한 직원(권한·메뉴·첫 화면) — GET /api/auth/me */
+/**
+ * 로그인한 직원(권한·메뉴·첫 화면) — GET /api/auth/me.
+ * 관리자가 권한을 바꾸면 바로 맞춰지도록(S-7): 화면을 옮길 때마다 새로 읽고(staleTime 0), 가만히 있어도 30초마다 읽는다.
+ * 다른 API가 403을 돌려줘도 다시 읽는다(src/app/providers.tsx). 실제 차단은 언제나 서버가 요청마다 한다.
+ */
 export function useMe() {
-  return useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: SHARED_STALE_MS });
+  return useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: 0, refetchInterval: ME_REFRESH_MS });
 }
+
 
 /** 병원 설정을 저장한 뒤 다시 읽게 할 때 쓰는 키 */
 export const SETTINGS_QUERY_KEY = ["settings"] as const;

@@ -30,6 +30,7 @@ import { GET as consultOutcomesRoute } from "@/app/api/settings/consult-outcomes
 import { GET as settingsRoute } from "@/app/api/settings/route";
 import { PUT as itemsRoute } from "@/app/api/settings/treatment-items/route";
 import { GET as staffAccountsRoute } from "@/app/api/staff/accounts/route";
+import { GET as jobPermissionsRoute } from "@/app/api/staff/job-permissions/route";
 import { GET as staffRoute } from "@/app/api/staff/route";
 import { GET as performanceRoute } from "@/app/api/stats/performance/route";
 import { GET as statsRoute } from "@/app/api/stats/route";
@@ -137,6 +138,7 @@ const GET_CALLS: Call[] = [
   { file: "settings/consult-outcomes/route.ts", route: consultOutcomesRoute, url: () => "/api/settings/consult-outcomes" },
   { file: "staff/route.ts", route: staffRoute, url: () => "/api/staff" },
   { file: "staff/accounts/route.ts", route: staffAccountsRoute, url: () => "/api/staff/accounts" },
+  { file: "staff/job-permissions/route.ts", route: jobPermissionsRoute, url: () => "/api/staff/job-permissions" },
   { file: "stats/route.ts", route: statsRoute, url: () => `/api/stats?from=${FROM}&to=${TODAY}&unit=day` },
   { file: "stats/performance/route.ts", route: performanceRoute, url: () => `/api/stats/performance?from=${FROM}&to=${TO}` },
 ];

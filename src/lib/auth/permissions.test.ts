@@ -14,6 +14,8 @@ import {
   type Permission,
   PERMISSION_MANAGER,
   permissionsOf,
+  SENSITIVE_PERMISSIONS,
+  isSensitivePermission,
 } from "./permissions";
 
 /**
@@ -174,5 +176,19 @@ describe("예약 금액 보기·고치기 (S-3)", () => {
     expect(DIRECTOR_EXTRA_PERMISSIONS).toEqual(expect.arrayContaining(["stats.read", "consult.read", "appointment.price"]));
     expect(hasPermission({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: DIRECTOR_EXTRA_PERMISSIONS }, "appointment.price")).toBe(true);
     expect(hasPermission({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: [] }, "appointment.price")).toBe(false);
+  });
+});
+
+describe("민감 권한 — S-7 (고정 규칙 4)", () => {
+  it("민감 권한은 있는 권한이고, 상담 보기·수술 메모·가져오기·권한 관리를 포함한다", () => {
+    for (const permission of SENSITIVE_PERMISSIONS) expect(PERMISSION_NAMES).toContain(permission);
+    expect([...SENSITIVE_PERMISSIONS].sort()).toEqual(["consult.read", "data.import", "staff.manage", "surgery.note"]);
+    expect(isSensitivePermission("stats.read")).toBe(false);
+    expect(isSensitivePermission("unknown.perm")).toBe(false);
+  });
+
+  it("권한 관리 권한(0명 보호 대상)은 권한 편집도 맡는다 — 권한 편집용 권한이 따로 없다", () => {
+    expect(PERMISSION_MANAGER).toBe("staff.manage");
+    expect(PERMISSION_NAMES.filter((p) => /permission|role/.test(p))).toEqual([]);
   });
 });

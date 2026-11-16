@@ -28,7 +28,8 @@ export const PERMISSIONS = {
   "settings.write": "병원 설정 바꾸기",
   /** 드롭다운용 직원 이름·직무만 */
   "staff.read": "직원 목록 보기",
-  "staff.manage": "직원 계정 관리",
+  /** 직원 계정과 권한(직무별 권한·개인 추가 권한) 편집. 이 권한을 가진 활성 직원이 0명이 되는 변경은 거부한다 (S-7) */
+  "staff.manage": "직원 계정·권한 관리",
   /** 상담 내용 포함. 프론트·간호는 상담 내용을 볼 수 없다 (T6-1) */
   "consult.read": "상담 보기",
   "consult.write": "상담 쓰기·수술예약 전환",
@@ -66,8 +67,22 @@ export function departmentOf(job: StaffRole): Department {
 
 const EVERYONE_READS = ["patient.read", "appointment.read", "settings.read", "staff.read", "surgery.record"] as const;
 
-/** 권한 관리 권한 — 이 권한을 가진 활성 직원이 0명이 되는 변경은 거부한다 */
+/**
+ * 권한 관리 권한 — 이 권한을 가진 활성 직원이 0명이 되는 변경은 거부한다(고정 규칙 1).
+ * 직무별 권한 편집·개인 추가 권한 편집도 이 권한이 한다(S-7). 권한 편집을 따로 떼지 않아 같은 0명 보호가 그대로 걸린다.
+ */
 export const PERMISSION_MANAGER = "staff.manage" satisfies Permission;
+
+/**
+ * 민감 권한 — 직무나 사람에게 새로 줄 때 확인을 한 번 더 받는다(고정 규칙 4, S-7). 서버도 확인 표시 없이 주는 요청을 거부한다.
+ * 상담 내용, 수술 메모(직원 관련 기록), 기존 CRM 가져오기(대량 데이터), 권한 관리(모든 권한을 열 수 있음).
+ * 내보내기 권한은 아직 없다. 생기면 여기에 더한다.
+ */
+export const SENSITIVE_PERMISSIONS = ["consult.read", "surgery.note", "data.import", "staff.manage"] as const satisfies readonly Permission[];
+
+export function isSensitivePermission(permission: string): boolean {
+  return (SENSITIVE_PERMISSIONS as readonly string[]).includes(permission);
+}
 
 /**
  * 처음 설치할 때의 직무별 권한. 마이그레이션 20261113010000_job_permission이 DB에 같은 값을 한 번만 넣는다

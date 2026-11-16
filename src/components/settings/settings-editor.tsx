@@ -11,6 +11,7 @@ import { ClinicRulesEditor } from "./clinic-rules-editor";
 import { ConsultOutcomesEditor } from "./consult-outcomes-editor";
 import { DepartmentHomesEditor } from "./department-homes-editor";
 import { StaffEditor } from "./staff-editor";
+import { PermissionMatrixEditor } from "./permission-matrix-editor";
 import { useAccess } from "@/components/auth/access";
 import { ImportScreen } from "@/components/import/import-screen";
 import type { ScreenArea } from "@/lib/auth/screen-registry";
@@ -25,6 +26,7 @@ const SECTIONS = [
   { key: "rules", label: "진료시간·기준", area: "calendar.settings" },
   { key: "homes", label: "부서별 첫 화면", area: "calendar.settings" },
   { key: "staff", label: "직원", area: "settings.staff" },
+  { key: "permissions", label: "권한", area: "settings.permissions" },
   { key: "import", label: "가져오기", area: "settings.import" },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; area: ScreenArea }>;
 type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -75,6 +77,7 @@ export function SettingsEditor({
         {section === "rules" && <ClinicRulesEditor settings={settings} onSaved={onSaved} />}
         {section === "consult" && <ConsultOutcomesEditor onSaved={onSaved} />}
         {section === "staff" && <StaffEditor onSaved={onSaved} />}
+        {section === "permissions" && <PermissionMatrixEditor onSaved={onSaved} />}
         {section === "homes" && <DepartmentHomesEditor onSaved={onSaved} />}
         {section === "import" && <ImportScreen />}
       </div>

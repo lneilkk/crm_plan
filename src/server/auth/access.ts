@@ -40,7 +40,7 @@ export async function assertPermissionManagerRemains(client: DbClient): Promise<
     throw new ApiError(
       409,
       "LAST_PERMISSION_MANAGER",
-      "권한을 관리할 수 있는 직원이 한 명은 남아 있어야 합니다. 다른 직원에게 직원 계정 관리 권한을 먼저 주세요.",
+      "권한을 관리할 수 있는 직원이 한 명은 남아 있어야 합니다. 다른 직원에게 직원 계정·권한 관리 권한을 먼저 주세요.",
     );
   }
 }
