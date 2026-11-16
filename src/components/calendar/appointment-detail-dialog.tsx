@@ -23,12 +23,12 @@ import {
 } from "@/lib/time/kst";
 import { amountAfterDiscount, isPremiumItem } from "@/lib/domain/treatment";
 import type { Permission } from "@/lib/auth/permissions";
-import { SurgerySection } from "./surgery-section";
+import { SurgeryNoteSection, SurgeryParticipantsSection } from "./surgery-section";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
 import { AppointmentEditSection } from "./appointment-edit-section";
 import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
 import { type AppointmentDetail, type CalendarAppointment, type DoctorOption, STATUS_TONE } from "./types";
-import { allowsArea } from "@/lib/auth/screen-registry";
+import { type AppointmentDetailSection, detailSectionsFor } from "@/lib/auth/screen-registry";
 
 function dateTimeLabel(iso: string): string {
   const instant = new Date(iso);
@@ -59,7 +59,7 @@ export function AppointmentDetailDialog({
   settings: ClinicSettings;
   doctors: DoctorOption[];
   canWrite: boolean;
-  /** 보는 직원의 역할 — 수술 기록 권한(F-11) */
+  /** 보는 직원의 권한 — 상세에 그릴 영역을 정한다(S-5) */
   permissions: readonly Permission[];
   /** 색 라벨 (F-2) */
   style: CalendarStyle;
@@ -124,6 +124,11 @@ export function AppointmentDetailDialog({
   );
 }
 
+/**
+ * 예약 상세 본문 — 확장 계획 S-5. 권한 단위 영역(기본 정보 / 상담·할인 / 수술 참여 직원 / 수술 메모)으로 나눈다.
+ * 어떤 영역을 그릴지는 화면 등록부(detailSectionsFor)가 정한다. 권한이 없는 영역은 빈 틀도 그리지 않고,
+ * 그 데이터는 API 응답에도 없다(금액·참여 직원). 시간 이동과 상태 이력은 기본 정보 권한으로 맨 아래에 둔다.
+ */
 function DetailBody({
   data,
   chairName,
@@ -154,121 +159,145 @@ function DetailBody({
   const start = new Date(data.startAt);
   // 보기가 기본이고, [고치기]를 눌렀을 때만 수정 양식·라벨 고르기가 보인다 (F-12)
   const [editing, setEditing] = useState(false);
+  const surgery = isPremiumItem(settings.treatmentItemMeta, data.treatmentItem) || (data.participants?.length ?? 0) > 0;
+  const sections = detailSectionsFor(permissions, surgery);
+  const shows = (name: AppointmentDetailSection) => sections.includes(name);
   // 금액은 금액 권한이 있을 때만 응답에 온다 (S-3)
   const price = data.listPrice !== undefined && data.discountRate !== undefined ? { list: data.listPrice, discount: data.discountRate } : null;
   const labelNamesShown = style.labels.filter((label) => data.labelIds.includes(label.id));
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xl font-bold">{data.patientNameMasked}</span>
-        {data.isNewPatient ? <Badge tone="warning">신환</Badge> : <Badge tone="neutral">구환</Badge>}
-        <Badge tone={STATUS_TONE[data.status]}>{APPOINTMENT_STATUS_LABEL[data.status]}</Badge>
-        <Link href={`/patients/${data.patientId}`} className="ml-auto text-base font-semibold text-blue-700 underline">
-          고객 상세 보기
-        </Link>
-      </div>
+      {shows("기본 정보") && (
+        <section aria-label="기본 정보" className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xl font-bold">{data.patientNameMasked}</span>
+            {data.isNewPatient ? <Badge tone="warning">신환</Badge> : <Badge tone="neutral">구환</Badge>}
+            <Badge tone={STATUS_TONE[data.status]}>{APPOINTMENT_STATUS_LABEL[data.status]}</Badge>
+            <Link href={`/patients/${data.patientId}`} className="ml-auto text-base font-semibold text-blue-700 underline">
+              고객 상세 보기
+            </Link>
+          </div>
 
-      <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1 text-base">
-        <Row label="일시">
-          {formatKstDateLabel(kstDateKey(start))} {formatKstTime(start)}~{formatKstTime(new Date(data.endAt))} ({data.durationMin}분)
-        </Row>
-        <Row label="체어">
-          {chairName(data.chair)} ({data.chair})
-        </Row>
-        <Row label="의사">{data.doctorName ?? "미지정"}</Row>
-        <Row label="상담">{data.counselorName ?? "-"}</Row>
-        <Row label="예약 항목">{data.treatmentItem}</Row>
-        <Row label="채널">{APPOINTMENT_CHANNEL_LABEL[data.channel]}</Row>
-        {data.arrivedAt && <Row label="내원 시각">{dateTimeLabel(data.arrivedAt)}</Row>}
-        {data.originalAppointmentId && <Row label="변경 전 예약">있음 (예약변경으로 만든 예약)</Row>}
-        {price && (
-          <Row label="금액">
+          <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1 text-base">
+            <Row label="일시">
+              {formatKstDateLabel(kstDateKey(start))} {formatKstTime(start)}~{formatKstTime(new Date(data.endAt))} ({data.durationMin}분)
+            </Row>
+            <Row label="체어">
+              {chairName(data.chair)} ({data.chair})
+            </Row>
+            <Row label="의사">{data.doctorName ?? "미지정"}</Row>
+            <Row label="상담">{data.counselorName ?? "-"}</Row>
+            <Row label="예약 항목">{data.treatmentItem}</Row>
+            <Row label="채널">{APPOINTMENT_CHANNEL_LABEL[data.channel]}</Row>
+            {data.arrivedAt && <Row label="내원 시각">{dateTimeLabel(data.arrivedAt)}</Row>}
+            {data.originalAppointmentId && <Row label="변경 전 예약">있음 (예약변경으로 만든 예약)</Row>}
+            <Row label="색 라벨">
+              {labelNamesShown.length === 0 ? (
+                "-"
+              ) : (
+                <span className="flex flex-wrap gap-3">
+                  {labelNamesShown.map((label) => (
+                    <ColorChip key={label.id} color={label.color} name={label.name} />
+                  ))}
+                </span>
+              )}
+            </Row>
+            <Row label="메모">
+              <span className="whitespace-pre-wrap">{data.memo ?? "-"}</span>
+            </Row>
+            <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
+          </dl>
+
+          {canWrite && !editing && (
+            <div>
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                고치기
+              </Button>
+            </div>
+          )}
+          {canWrite && editing && (
+            <div className="flex flex-col gap-3 rounded-lg border-2 border-blue-200 p-3">
+              <AppointmentEditSection
+                key={`${data.treatmentItem}|${data.chair}|${data.doctorId}|${data.counselorId}|${data.discountRate}|${data.memo}`}
+                data={data}
+                settings={settings}
+                doctors={doctors}
+                canWrite={canWrite}
+                canPrice={shows("상담·할인")}
+                today={today}
+                onSaved={() => {
+                  setEditing(false);
+                  onEdited();
+                }}
+              />
+              <LabelSection key={data.labelIds.join(",")} appointmentId={data.id} saved={data.labelIds} style={style} canWrite={canWrite} onSaved={onLabelsSaved} />
+              <div>
+                <Button variant="ghost" onClick={() => setEditing(false)}>
+                  고치기 닫기
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {shows("상담·할인") && price && (
+        <section aria-label="상담·할인" className="flex flex-col gap-1 rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+          <h3 className="text-base font-bold">상담·할인</h3>
+          <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1 text-base">
             {price.list === null ? (
-              <span className="font-semibold text-amber-800">단가 미입력 — [편집] → [예약 항목]에서 단가를 채우면 이 예약에도 들어갑니다</span>
+              <Row label="금액">
+                <span className="font-semibold text-amber-800">단가 미입력 — [편집] → [예약 항목]에서 단가를 채우면 이 예약에도 들어갑니다</span>
+              </Row>
             ) : (
               <>
-                {price.list.toLocaleString("ko-KR")}원{price.discount > 0 && ` · 할인 ${price.discount}%`} →{" "}
-                <strong>{amountAfterDiscount(price.list, price.discount).toLocaleString("ko-KR")}원</strong>
+                <Row label="단가">{price.list.toLocaleString("ko-KR")}원</Row>
+                <Row label="할인">{price.discount > 0 ? `${price.discount}%` : "없음"}</Row>
+                <Row label="금액">
+                  <strong>{amountAfterDiscount(price.list, price.discount).toLocaleString("ko-KR")}원</strong>
+                </Row>
               </>
             )}
-          </Row>
-        )}
-        <Row label="색 라벨">
-          {labelNamesShown.length === 0 ? (
-            "-"
-          ) : (
-            <span className="flex flex-wrap gap-3">
-              {labelNamesShown.map((label) => (
-                <ColorChip key={label.id} color={label.color} name={label.name} />
-              ))}
-            </span>
-          )}
-        </Row>
-        <Row label="메모">
-          <span className="whitespace-pre-wrap">{data.memo ?? "-"}</span>
-        </Row>
-        <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
-      </dl>
-
-      {canWrite && !editing && (
-        <div>
-          <Button variant="secondary" onClick={() => setEditing(true)}>
-            고치기
-          </Button>
-        </div>
-      )}
-      {canWrite && editing && (
-        <div className="flex flex-col gap-3 rounded-lg border-2 border-blue-200 p-3">
-          <AppointmentEditSection
-            key={`${data.treatmentItem}|${data.chair}|${data.doctorId}|${data.counselorId}|${data.discountRate}|${data.memo}`}
-            data={data}
-            settings={settings}
-            doctors={doctors}
-            canWrite={canWrite}
-            canPrice={allowsArea(permissions, "appointment.price")}
-            today={today}
-            onSaved={() => {
-              setEditing(false);
-              onEdited();
-            }}
-          />
-          <LabelSection key={data.labelIds.join(",")} appointmentId={data.id} saved={data.labelIds} style={style} canWrite={canWrite} onSaved={onLabelsSaved} />
-          <div>
-            <Button variant="ghost" onClick={() => setEditing(false)}>
-              고치기 닫기
-            </Button>
-          </div>
-        </div>
+          </dl>
+        </section>
       )}
 
-      {(isPremiumItem(settings.treatmentItemMeta, data.treatmentItem) || data.participants.length > 0) && (
-        <SurgerySection key={data.participants.map((p) => p.staffId).join(",")} data={data} permissions={permissions} onSaved={(message) => onLabelsSaved(message)} />
+      {shows("수술 참여 직원") && data.participants && (
+        <SurgeryParticipantsSection
+          key={data.participants.map((p) => p.staffId).join(",")}
+          appointmentId={data.id}
+          participants={data.participants}
+          onSaved={(message) => onLabelsSaved(message)}
+        />
       )}
+      {shows("수술 메모") && <SurgeryNoteSection appointmentId={data.id} onSaved={(message) => onLabelsSaved(message)} />}
 
-      {canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (
+      {shows("기본 정보") && canWrite && isPendingStatus(data.status) && kstDateKey(start) >= today && (
         <MoveForm data={data} chairs={chairs} onMoved={onMoved} />
       )}
 
-      <section>
-        <h3 className="mb-2 text-lg font-bold">상태 이력</h3>
-        {data.history.length === 0 ? (
-          <p className="text-slate-600">이력이 없습니다.</p>
-        ) : (
-          <ol aria-label="상태 이력" className="flex flex-col gap-1">
-            {data.history.map((entry, i) => (
-              <li key={i} className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-base">
-                <span className="tabular-nums text-slate-600">{dateTimeLabel(entry.createdAt)}</span>
-                <span>
-                  {entry.fromStatus ? APPOINTMENT_STATUS_LABEL[entry.fromStatus] : "신규 등록"} →{" "}
-                  <strong>{APPOINTMENT_STATUS_LABEL[entry.toStatus]}</strong>
-                </span>
-                {entry.reasonCode && <Badge tone="muted">사유: {VISIT_REASON_LABEL[entry.reasonCode]}</Badge>}
-                <span className="ml-auto text-sm text-slate-600">{entry.staffName}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+      {shows("기본 정보") && (
+        <section>
+          <h3 className="mb-2 text-lg font-bold">상태 이력</h3>
+          {data.history.length === 0 ? (
+            <p className="text-slate-600">이력이 없습니다.</p>
+          ) : (
+            <ol aria-label="상태 이력" className="flex flex-col gap-1">
+              {data.history.map((entry, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-base">
+                  <span className="tabular-nums text-slate-600">{dateTimeLabel(entry.createdAt)}</span>
+                  <span>
+                    {entry.fromStatus ? APPOINTMENT_STATUS_LABEL[entry.fromStatus] : "신규 등록"} →{" "}
+                    <strong>{APPOINTMENT_STATUS_LABEL[entry.toStatus]}</strong>
+                  </span>
+                  {entry.reasonCode && <Badge tone="muted">사유: {VISIT_REASON_LABEL[entry.reasonCode]}</Badge>}
+                  <span className="ml-auto text-sm text-slate-600">{entry.staffName}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
     </div>
   );
 }

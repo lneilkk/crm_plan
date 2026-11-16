@@ -3,13 +3,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
-import type { Permission } from "@/lib/auth/permissions";
 import { STAFF_ROLE_LABEL, type StaffRole } from "@/lib/domain/staff";
 import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import { containsResidentRegistrationNumber, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
 import { Badge, Button, FieldError, Spinner } from "@/components/ui";
 import type { AppointmentDetail } from "./types";
-import { allowsArea } from "@/lib/auth/screen-registry";
 
 type StaffOption = { id: string; name: string; role: StaffRole };
 
@@ -17,22 +15,20 @@ type StaffOption = { id: string; name: string; role: StaffRole };
 const PARTICIPANT_TONE: Partial<Record<StaffRole, "info">> = { NURSE: "info" };
 
 /**
- * 수술 기록 (F-11) — 참여 직원(간호·의사 등)과 수술 메모(실수 등, 원장·관리자만).
- * 메모는 따로 읽으며(조회 감사 로그), 일반 예약 응답에는 실리지 않는다.
+ * 수술 참여 직원 (F-11) — 예약 상세의 '수술 참여 직원' 영역(S-5, surgery.participants).
+ * 영역을 그릴지는 예약 상세가 등록부(detailSectionsFor)로 정한다. 이 영역이 보이면 참여 직원을 보고 고칠 수 있다.
  */
-export function SurgerySection({
-  data,
-  permissions,
+export function SurgeryParticipantsSection({
+  appointmentId,
+  participants,
   onSaved,
 }: {
-  data: AppointmentDetail;
-  permissions: readonly Permission[];
+  appointmentId: string;
+  participants: NonNullable<AppointmentDetail["participants"]>;
   onSaved: (message: string) => void;
 }) {
-  const canRecord = allowsArea(permissions, "surgery.participants");
-  const canNote = allowsArea(permissions, "surgery.note");
   const [editing, setEditing] = useState(false);
-  const [selected, setSelected] = useState<string[]>(data.participants.map((p) => p.staffId));
+  const [selected, setSelected] = useState<string[]>(participants.map((p) => p.staffId));
   const staff = useQuery({
     queryKey: ["staff", "all"],
     queryFn: () => apiFetch<{ staff: StaffOption[] }>("/api/staff"),
@@ -40,7 +36,7 @@ export function SurgerySection({
     enabled: editing,
   });
   const save = useMutation({
-    mutationFn: () => apiFetch(`/api/appointments/${data.id}/participants`, { method: "PUT", body: { staffIds: selected } }),
+    mutationFn: () => apiFetch(`/api/appointments/${appointmentId}/participants`, { method: "PUT", body: { staffIds: selected } }),
     onSuccess: () => {
       setEditing(false);
       onSaved("참여 직원을 저장했습니다.");
@@ -52,20 +48,19 @@ export function SurgerySection({
   const options = (staff.data?.staff ?? []).toSorted((a, b) => order.indexOf(a.role) - order.indexOf(b.role) || a.name.localeCompare(b.name));
 
   return (
-    <section aria-label="수술 기록" className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3">
-      <h3 className="text-base font-bold">수술 기록</h3>
+    <section aria-label="수술 참여 직원" className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+      <h3 className="text-base font-bold">수술 참여 직원</h3>
       <div className="flex flex-wrap items-center gap-2 text-base">
-        <span className="text-slate-600">참여 직원</span>
-        {data.participants.length === 0 ? (
+        {participants.length === 0 ? (
           <span className="text-slate-500">없음</span>
         ) : (
-          data.participants.map((p) => (
+          participants.map((p) => (
             <Badge key={p.staffId} tone={PARTICIPANT_TONE[p.role] ?? "neutral"}>
               {p.name} ({STAFF_ROLE_LABEL[p.role]})
             </Badge>
           ))
         )}
-        {canRecord && !editing && (
+        {!editing && (
           <Button variant="ghost" onClick={() => setEditing(true)}>참여 직원 고치기</Button>
         )}
       </div>
@@ -93,7 +88,19 @@ export function SurgerySection({
           </div>
         </div>
       )}
-      {canNote && <SurgeryNote appointmentId={data.id} onSaved={onSaved} />}
+    </section>
+  );
+}
+
+/**
+ * 수술 메모 (F-11) — 예약 상세의 '수술 메모' 영역(S-5, surgery.note). 메모는 따로 읽으며(조회 감사 로그),
+ * 일반 예약 응답에는 실리지 않는다. 영역이 없으면 이 컴포넌트가 실행되지 않아 메모 API도 부르지 않는다.
+ */
+export function SurgeryNoteSection({ appointmentId, onSaved }: { appointmentId: string; onSaved: (message: string) => void }) {
+  return (
+    <section aria-label="수술 메모" className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+      <h3 className="text-base font-bold">수술 메모</h3>
+      <SurgeryNote appointmentId={appointmentId} onSaved={onSaved} />
     </section>
   );
 }
@@ -128,7 +135,7 @@ function NoteEditor({
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={`surgery-note-${appointmentId}`} className="text-sm font-semibold text-slate-700">
-        수술 메모 (원장·관리자만 보임 — 실수·특이사항, 진단·처방은 적지 않음)
+        수술 메모 내용 (권한 있는 직원만 봄 — 실수·특이사항만, 진단·처방은 적지 않음)
       </label>
       <textarea id={`surgery-note-${appointmentId}`} rows={3} maxLength={2000} value={content} onChange={(e) => setContent(e.target.value)}
         className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-base" />

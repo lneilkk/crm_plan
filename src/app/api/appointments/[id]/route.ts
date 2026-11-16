@@ -4,7 +4,7 @@ import { isValidDiscountRate } from "@/lib/domain/treatment";
 import { containsResidentRegistrationNumber, RRN_FIELD_CODE } from "@/lib/validation/forbidden-text";
 import { getAppointmentDetail } from "@/server/appointments/query";
 import { updateAppointment } from "@/server/appointments/update";
-import { appointmentForViewer, assertCanChangePrice } from "@/server/appointments/price";
+import { appointmentDetailForViewer, assertCanChangePrice } from "@/server/appointments/price";
 
 /** 예약 한 건 상세와 상태 이력 — T4-1 */
 export const GET = defineRoute({
@@ -15,7 +15,7 @@ export const GET = defineRoute({
     const appointment = await getAppointmentDetail(ctx.params.id);
     ctx.touchPatients([appointment.patientId]);
     ctx.audit({ appointmentId: appointment.id });
-    return { appointment: appointmentForViewer(ctx.staff, appointment) };
+    return { appointment: appointmentDetailForViewer(ctx.staff, appointment) };
   },
 });
 

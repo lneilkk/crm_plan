@@ -25,9 +25,9 @@ test.describe("수술 기록", () => {
     await nursePage.goto("/calendar");
     await nursePage.locator(`[data-appointment-id="${id}"]`).click();
     const dialog = nursePage.getByRole("dialog", { name: "예약 상세" });
-    const section = dialog.getByRole("region", { name: "수술 기록" });
+    const section = dialog.getByRole("region", { name: "수술 참여 직원" });
     await expect(section).toBeVisible();
-    await expect(section.getByText("수술 메모", { exact: false })).toHaveCount(0); // 간호에게는 메모가 없다
+    await expect(dialog.getByRole("region", { name: "수술 메모" })).toHaveCount(0); // 간호에게는 메모 영역이 없다 (S-5)
     await expect(dialog.getByRole("button", { name: "고치기", exact: true })).toHaveCount(0); // 예약 수정 권한 없음
     await section.getByRole("button", { name: "참여 직원 고치기" }).click();
     const pick = section.getByRole("group", { name: "참여 직원 고르기" });
@@ -43,11 +43,12 @@ test.describe("수술 기록", () => {
     await login(doctorPage, "doctor1");
     await doctorPage.goto("/calendar");
     await doctorPage.locator(`[data-appointment-id="${id}"]`).click();
-    const doctorSection = doctorPage.getByRole("dialog", { name: "예약 상세" }).getByRole("region", { name: "수술 기록" });
-    await doctorSection.getByLabel(/수술 메모/).fill("시험 메모: 기구 준비 늦음");
-    await doctorSection.getByRole("button", { name: "수술 메모 저장" }).click();
+    const doctorDialog = doctorPage.getByRole("dialog", { name: "예약 상세" });
+    const noteSection = doctorDialog.getByRole("region", { name: "수술 메모" });
+    await noteSection.getByLabel(/수술 메모 내용/).fill("시험 메모: 기구 준비 늦음");
+    await noteSection.getByRole("button", { name: "수술 메모 저장" }).click();
     await expect(doctorPage.getByRole("status").filter({ hasText: "수술 메모를 저장했습니다." })).toBeVisible();
-    await expect(doctorSection).toContainText("이의사");
+    await expect(doctorDialog.getByRole("region", { name: "수술 참여 직원" })).toContainText("이의사");
     await doctorPage.context().close();
   });
 });

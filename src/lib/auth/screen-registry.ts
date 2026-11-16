@@ -14,12 +14,13 @@ export const SCREEN_AREAS = {
   "board.visitActions": { label: "내원 보드 — 상태 버튼·되돌리기", permission: "visit.write" },
   "board.reschedule": { label: "내원 보드 — [예약변경]", permission: "appointment.write" },
   // 예약 캘린더·예약 상세
+  "appointment.view": { label: "예약 상세 — 기본 정보(일시·체어·담당·항목·메모·상태 이력)", permission: "appointment.read" },
   "appointment.write": { label: "예약 등록·옮기기·[고치기]·라벨·[예약변경]", permission: "appointment.write" },
   "appointment.price": { label: "예약 금액(단가·할인율)·실적 금액·항목 단가", permission: "appointment.price" },
   "calendar.settings": { label: "[편집] — 병원 설정 하위 메뉴(예약 항목·라벨·체어·진료시간·첫 화면 등)", permission: "settings.write" },
   "settings.staff": { label: "[편집] — 직원", permission: "staff.manage" },
   "settings.import": { label: "[편집] — 기존 CRM 가져오기", permission: "data.import" },
-  "surgery.participants": { label: "수술 기록 — 참여 직원 고르기", permission: "surgery.record" },
+  "surgery.participants": { label: "수술 기록 — 참여 직원 보기·고르기", permission: "surgery.record" },
   "surgery.note": { label: "수술 기록 — 수술 메모", permission: "surgery.note" },
   // 상담
   "consult.write": { label: "상담 — [+ 상담 등록]·[고치기]·[→ 수술예약]", permission: "consult.write" },
@@ -38,6 +39,28 @@ export const SCREEN_AREA_NAMES = Object.keys(SCREEN_AREAS) as ScreenArea[];
 export function allowsArea(permissions: readonly Permission[], area: ScreenArea): boolean {
   if (!Object.hasOwn(SCREEN_AREAS, area)) return false;
   return permissions.includes(SCREEN_AREAS[area].permission);
+}
+
+/**
+ * 예약 상세의 영역 — 확장 계획 S-5. 이 순서로 그리고, 권한이 없는 영역은 그리지 않는다(빈 틀도 없음).
+ * 그 영역의 데이터도 API 응답에서 뺀다: 금액은 src/server/appointments/price.ts, 참여 직원은 같은 파일의 appointmentDetailForViewer,
+ * 수술 메모는 처음부터 따로 읽는 API(surgery.note 권한)다.
+ * 수술 영역은 고가 항목 예약이거나 이미 참여 직원이 있을 때만 나온다.
+ */
+export const APPOINTMENT_DETAIL_SECTIONS = [
+  { name: "기본 정보", area: "appointment.view", surgeryOnly: false },
+  { name: "상담·할인", area: "appointment.price", surgeryOnly: false },
+  { name: "수술 참여 직원", area: "surgery.participants", surgeryOnly: true },
+  { name: "수술 메모", area: "surgery.note", surgeryOnly: true },
+] as const satisfies ReadonlyArray<{ name: string; area: ScreenArea; surgeryOnly: boolean }>;
+
+export type AppointmentDetailSection = (typeof APPOINTMENT_DETAIL_SECTIONS)[number]["name"];
+
+/** 그 권한 목록으로 예약 상세에 보이는 영역 이름(순서대로). surgery: 수술 영역이 나오는 예약인지 */
+export function detailSectionsFor(permissions: readonly Permission[], surgery: boolean): AppointmentDetailSection[] {
+  return APPOINTMENT_DETAIL_SECTIONS.filter((section) => (surgery || !section.surgeryOnly) && allowsArea(permissions, section.area)).map(
+    (section) => section.name,
+  );
 }
 
 /**

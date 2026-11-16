@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSION_NAMES } from "./permissions";
+import { DIRECTOR_EXTRA_PERMISSIONS, INITIAL_JOB_PERMISSIONS, type Permission, PERMISSION_NAMES, permissionsOf } from "./permissions";
 import {
+  APPOINTMENT_DETAIL_SECTIONS,
+  type AppointmentDetailSection,
   allowsArea,
   allowsScreen,
   HOME_CHOICES,
@@ -8,6 +10,7 @@ import {
   INITIAL_DEPARTMENT_HOMES,
   SCREEN_AREA_NAMES,
   SCREEN_AREAS,
+  detailSectionsFor,
   type ScreenArea,
   SCREENS,
   screenForPath,
@@ -83,5 +86,35 @@ describe("부서별 첫 화면 — S-4 (설정값, 프로그램은 초기값만)
 
   it("볼 수 있는 메뉴가 하나도 없으면 비밀번호 변경 화면", () => {
     expect(homeFor("CLINICAL", { CLINICAL: "/calendar" }, [])).toBe("/account/password");
+  });
+});
+
+describe("예약 상세 영역 — S-5 (부서·직무별 표, docs/SCREEN_MAP.md 8장과 같아야 한다)", () => {
+  // 첫 설치 값 기준. 원장 = 의사 직무 + 추가 권한(DIRECTOR_EXTRA_PERMISSIONS)
+  const TABLE: Record<string, { permissions: readonly Permission[]; surgery: AppointmentDetailSection[] }> = {
+    "프론트": { permissions: permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.FRONT, extraPermissions: [] }), surgery: ["기본 정보", "수술 참여 직원"] },
+    "상담": { permissions: permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.COUNSELOR, extraPermissions: [] }), surgery: ["기본 정보", "상담·할인", "수술 참여 직원"] },
+    "진료 — 원장": {
+      permissions: permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: DIRECTOR_EXTRA_PERMISSIONS }),
+      surgery: ["기본 정보", "상담·할인", "수술 참여 직원", "수술 메모"],
+    },
+    "진료 — 의사(추가 권한 없음)": { permissions: permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.DOCTOR, extraPermissions: [] }), surgery: ["기본 정보", "수술 참여 직원", "수술 메모"] },
+    "진료 — 간호": { permissions: permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.NURSE, extraPermissions: [] }), surgery: ["기본 정보", "수술 참여 직원"] },
+    "운영": { permissions: permissionsOf({ jobPermissions: INITIAL_JOB_PERMISSIONS.ADMIN, extraPermissions: [] }), surgery: ["기본 정보", "상담·할인", "수술 참여 직원", "수술 메모"] },
+  };
+
+  it("고가 항목(수술) 예약에서 보이는 영역이 표와 같다", () => {
+    for (const [who, row] of Object.entries(TABLE)) expect(detailSectionsFor(row.permissions, true), who).toEqual(row.surgery);
+  });
+
+  it("일반 예약에서는 수술 영역이 없다", () => {
+    for (const [who, row] of Object.entries(TABLE)) {
+      expect(detailSectionsFor(row.permissions, false), who).toEqual(row.surgery.filter((name) => !name.startsWith("수술")));
+    }
+  });
+
+  it("영역은 등록부의 영역 이름을 가리키고, 권한이 없으면 기본 정보도 없다", () => {
+    for (const section of APPOINTMENT_DETAIL_SECTIONS) expect(SCREEN_AREA_NAMES).toContain(section.area);
+    expect(detailSectionsFor([], true)).toEqual([]);
   });
 });
