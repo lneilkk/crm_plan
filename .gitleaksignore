@@ -1,0 +1,12 @@
+# gitleaks가 비밀정보로 잘못 본 커밋된 항목만 한 건씩 넘긴다(.gitleaks.toml 안내). 줄마다 이유를 위에 적는다.
+# 같은 줄이 다른 커밋에서 바뀌면 다시 검사된다.
+
+# Dockerfile: next build 때만 쓰는 접속할 수 없는 자리표시 주소(build:build@127.0.0.1:1). 이미지에 남지 않음
+1aea6cc0f6a272433d15e5faeb601075ad6fd45b:Dockerfile:crm-postgres-url-password:40
+# health 테스트: 에러 문구가 로그로 새지 않는지 보려고 넣은 가짜 접속 주소(비밀번호 자리에 '비밀')
+1aea6cc0f6a272433d15e5faeb601075ad6fd45b:src/app/api/health/route.test.ts:crm-postgres-url-password:32
+# DEPLOY.md: 형식 설명(POSTGRES_USER:POSTGRES_PASSWORD@db)
+1aea6cc0f6a272433d15e5faeb601075ad6fd45b:docs/DEPLOY.md:crm-postgres-url-password:43
+# auth 테스트: 비밀번호가 로그·응답에 남지 않는지 확인하려고 테스트에서만 쓰는 가짜 비밀번호 2개
+aa63993eee6c6300e4a71e54bcdf4730bf6bdd05:tests/integration/auth.test.ts:generic-api-key:331
+aa63993eee6c6300e4a71e54bcdf4730bf6bdd05:tests/integration/auth.test.ts:generic-api-key:332

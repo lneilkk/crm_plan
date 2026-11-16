@@ -1,0 +1,157 @@
+"use client";
+
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
+import { STAFF_ROLE_LABEL, type StaffRole } from "@/lib/domain/staff";
+import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
+import { containsResidentRegistrationNumber, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
+import { Badge, Button, FieldError, Spinner } from "@/components/ui";
+import type { AppointmentDetail } from "./types";
+import { useStaffOptions } from "@/components/shared/queries";
+
+/** 참여 직원 배지 색 — 간호를 눈에 띄게 */
+const PARTICIPANT_TONE: Partial<Record<StaffRole, "info">> = { NURSE: "info" };
+
+/**
+ * 수술 참여 직원 (F-11) — 예약 상세의 '수술 참여 직원' 영역(S-5, surgery.participants).
+ * 영역을 그릴지는 예약 상세가 등록부(detailSectionsFor)로 정한다. 이 영역이 보이면 참여 직원을 보고 고칠 수 있다.
+ */
+export function SurgeryParticipantsSection({
+  appointmentId,
+  participants,
+  onSaved,
+}: {
+  appointmentId: string;
+  participants: NonNullable<AppointmentDetail["participants"]>;
+  onSaved: (message: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<string[]>(participants.map((p) => p.staffId));
+  const staff = useStaffOptions(undefined, { enabled: editing });
+  const save = useMutation({
+    mutationFn: () => apiFetch(`/api/appointments/${appointmentId}/participants`, { method: "PUT", body: { staffIds: selected } }),
+    onSuccess: () => {
+      setEditing(false);
+      onSaved("참여 직원을 저장했습니다.");
+    },
+  });
+
+  // 간호를 먼저, 그다음 의사·나머지
+  const order: StaffRole[] = ["NURSE", "DOCTOR", "COUNSELOR", "FRONT", "ADMIN"];
+  const options = (staff.data?.staff ?? []).toSorted((a, b) => order.indexOf(a.role) - order.indexOf(b.role) || a.name.localeCompare(b.name));
+
+  return (
+    <section aria-label="수술 참여 직원" className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+      <h3 className="text-base font-bold">수술 참여 직원</h3>
+      <div className="flex flex-wrap items-center gap-2 text-base">
+        {participants.length === 0 ? (
+          <span className="text-slate-500">없음</span>
+        ) : (
+          participants.map((p) => (
+            <Badge key={p.staffId} tone={PARTICIPANT_TONE[p.role] ?? "neutral"}>
+              {p.name} ({STAFF_ROLE_LABEL[p.role]})
+            </Badge>
+          ))
+        )}
+        {!editing && (
+          <Button variant="ghost" onClick={() => setEditing(true)}>참여 직원 고치기</Button>
+        )}
+      </div>
+      {editing && (
+        <div className="flex flex-col gap-2">
+          {staff.isPending ? (
+            <Spinner showLabel />
+          ) : (
+            <div role="group" aria-label="참여 직원 고르기" className="flex flex-wrap gap-1.5">
+              {options.map((s) => {
+                const on = selected.includes(s.id);
+                return (
+                  <button key={s.id} type="button" aria-pressed={on} onClick={() => setSelected(on ? selected.filter((x) => x !== s.id) : [...selected, s.id])}
+                    className={`min-h-9 rounded-full border px-3 text-sm font-semibold ${on ? "border-violet-700 bg-violet-700 text-white" : "border-slate-300 bg-white"}`}>
+                    {s.name} <span className="font-normal opacity-80">{STAFF_ROLE_LABEL[s.role]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Button disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? "저장 중…" : "참여 직원 저장"}</Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>취소</Button>
+            {save.isError && <FieldError>{save.error instanceof ApiRequestError ? save.error.message : "저장하지 못했습니다."}</FieldError>}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 수술 메모 (F-11) — 예약 상세의 '수술 메모' 영역(S-5, surgery.note). 메모는 따로 읽으며(조회 감사 로그),
+ * 일반 예약 응답에는 실리지 않는다. 영역이 없으면 이 컴포넌트가 실행되지 않아 메모 API도 부르지 않는다.
+ */
+export function SurgeryNoteSection({ appointmentId, onSaved }: { appointmentId: string; onSaved: (message: string) => void }) {
+  return (
+    <section aria-label="수술 메모" className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+      <h3 className="text-base font-bold">수술 메모</h3>
+      <SurgeryNote appointmentId={appointmentId} onSaved={onSaved} />
+    </section>
+  );
+}
+
+function SurgeryNote({ appointmentId, onSaved }: { appointmentId: string; onSaved: (message: string) => void }) {
+  const note = useQuery({
+    queryKey: ["surgery-note", appointmentId],
+    queryFn: () => apiFetch<{ note: { content: string; updatedAt: string; updatedByName: string } | null }>(`/api/appointments/${appointmentId}/surgery-note`),
+    staleTime: 0,
+  });
+  if (note.isPending) return <Spinner showLabel label="수술 메모를 불러오는 중" />;
+  if (note.isError) return <FieldError>{note.error.message}</FieldError>;
+  return <NoteEditor key={note.data.note?.updatedAt ?? "none"} appointmentId={appointmentId} initial={note.data.note} onSaved={async (m) => { await note.refetch(); onSaved(m); }} />;
+}
+
+function NoteEditor({
+  appointmentId,
+  initial,
+  onSaved,
+}: {
+  appointmentId: string;
+  initial: { content: string; updatedAt: string; updatedByName: string } | null;
+  onSaved: (message: string) => void;
+}) {
+  const [content, setContent] = useState(initial?.content ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: () => apiFetch(`/api/appointments/${appointmentId}/surgery-note`, { method: "PUT", body: { content: content.trim() } }),
+    onSuccess: () => onSaved("수술 메모를 저장했습니다."),
+    onError: (e) => setError(e instanceof ApiRequestError ? e.message : "저장하지 못했습니다."),
+  });
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={`surgery-note-${appointmentId}`} className="text-sm font-semibold text-slate-700">
+        수술 메모 내용 (권한 있는 직원만 봄 — 실수·특이사항만, 진단·처방은 적지 않음)
+      </label>
+      <textarea id={`surgery-note-${appointmentId}`} rows={3} maxLength={2000} value={content} onChange={(e) => setContent(e.target.value)}
+        className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-base" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="secondary"
+          disabled={save.isPending || content.trim() === (initial?.content ?? "")}
+          onClick={() => {
+            if (containsResidentRegistrationNumber(content)) return setError(RRN_ERROR_MESSAGE);
+            setError(null);
+            save.mutate();
+          }}
+        >
+          {save.isPending ? "저장 중…" : "수술 메모 저장"}
+        </Button>
+        {initial && (
+          <span className="text-sm text-slate-500">
+            {initial.updatedByName} · {formatKstDateLabel(kstDateKey(new Date(initial.updatedAt)))} {formatKstTime(new Date(initial.updatedAt))}
+          </span>
+        )}
+        {error && <FieldError>{error}</FieldError>}
+      </div>
+    </div>
+  );
+}

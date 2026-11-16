@@ -1,0 +1,7 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["route53:ListHostedZones", "route53:ListHostedZonesByName", "route53:GetChange"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["route53:ListResourceRecordSets", "route53:ChangeResourceRecordSets"], "Resource": "arn:aws:route53:::hostedzone/Z060614436XKMC6DRMRVR" }
+  ]
+}

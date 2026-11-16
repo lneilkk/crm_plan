@@ -1,0 +1,22 @@
+# 프로토타입 HTTPS 프록시 (T10-4의 축소판). 인증서는 Let's Encrypt DNS 인증(Route 53)으로 받는다.
+# 접속 허용 IP는 EC2 보안 그룹이 막는다(병원 IP·관리자 IP만 443 허용). 80·443 외 포트는 열지 않는다.
+# 서버의 역할(crm-proto-ec2)이 Route 53 레코드를 쓸 수 있어 접근 키를 이 파일에 적지 않는다.
+{
+	admin off
+}
+
+crm-gbc.com {
+	tls {
+		dns route53 {
+			region ap-northeast-2
+		}
+	}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:3100
+}
