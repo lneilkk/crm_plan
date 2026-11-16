@@ -24,17 +24,15 @@ import {
   kstDayStart,
   kstWeekStart,
 } from "@/lib/time/kst";
-import { Button, cn, EmptyState, Input, Label, Select, Spinner, Toast, type ToastTone } from "@/components/ui";
+import { Button, cn, EmptyState, Input, Spinner, Toast, type ToastTone } from "@/components/ui";
 import { AppointmentDetailDialog } from "./appointment-detail-dialog";
 import { BookingDialog, type BookingPrefill } from "./booking-dialog";
 import {
   CalendarLegend,
   type CalendarSize,
   type CalendarStyle,
-  COLUMN_WIDTH_OPTIONS,
   FALLBACK_STYLE,
   pxPerMinFor,
-  ROW_HEIGHT_OPTIONS,
   useCalendarSize,
   useCalendarStyle,
   useViewportHeight,
@@ -43,6 +41,7 @@ import { treatmentColorOf } from "@/lib/domain/treatment";
 import { SettingsEditor } from "@/components/settings/settings-editor";
 import { DayView, type MoveTarget } from "./day-view";
 import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } from "./types";
+import { ViewSettings } from "./view-settings";
 import { WeekView } from "./week-view";
 import { allowsArea } from "@/lib/auth/screen-registry";
 
@@ -237,7 +236,7 @@ function Calendar({
         <Input
           type="date"
           aria-label="날짜 선택"
-          className="w-auto"
+          className="w-auto!" // 입력칸 기본값(w-full)보다 우선 — 도구줄 한 줄에 들어가게
           value={date}
           onChange={(e) => {
             if (isValidDateKey(e.target.value)) setDate(e.target.value);
@@ -254,21 +253,11 @@ function Calendar({
             ]}
             onChange={setView}
           />
-          {view === "day" && (
-            <Toggle
-              label="열 기준"
-              value={mode}
-              options={[
-                { value: "chair", label: "체어별" },
-                { value: "doctor", label: "의사별" },
-              ]}
-              onChange={setMode}
-            />
-          )}
+          {/* 표시 옵션은 [보기 설정] 하나에 (S-5). 일 보기에서만 쓰는 옵션이다 */}
+          {view === "day" && <ViewSettings mode={mode} onModeChange={setMode} size={size} onSizeChange={setSize} />}
         </div>
       </div>
 
-      <SizeControls size={size} onChange={setSize} showWidth={view === "day"} />
       <CalendarLegend style={paintStyle} />
 
       {appointments.isError && !appointments.data ? (
@@ -472,66 +461,6 @@ function Toggle<T extends string>({
           {option.label}
         </button>
       ))}
-    </div>
-  );
-}
-
-/** 칸 크기 (F-3) — 가로규격·세로규격. 이 브라우저에 기억한다. */
-function SizeControls({
-  size,
-  onChange,
-  showWidth,
-}: {
-  size: CalendarSize;
-  onChange: (size: CalendarSize) => void;
-  showWidth: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-4">
-      {showWidth && (
-        <div className="flex items-center gap-2">
-          <Label htmlFor="calendar-width" className="mb-0 whitespace-nowrap">
-            가로규격
-          </Label>
-          <Select
-            id="calendar-width"
-            className="w-auto"
-            value={String(size.width)}
-            onChange={(e) => {
-              const found = COLUMN_WIDTH_OPTIONS.find((o) => String(o.value) === e.target.value);
-              if (found) onChange({ ...size, width: found.value });
-            }}
-          >
-            {COLUMN_WIDTH_OPTIONS.map((o) => (
-              <option key={String(o.value)} value={String(o.value)}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-      )}
-      {showWidth && (
-        <div className="flex items-center gap-2">
-          <Label htmlFor="calendar-height" className="mb-0 whitespace-nowrap">
-            세로규격
-          </Label>
-          <Select
-            id="calendar-height"
-            className="w-auto"
-            value={size.height}
-            onChange={(e) => {
-              const found = ROW_HEIGHT_OPTIONS.find((o) => o.value === e.target.value);
-              if (found) onChange({ ...size, height: found.value });
-            }}
-          >
-            {ROW_HEIGHT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-      )}
     </div>
   );
 }

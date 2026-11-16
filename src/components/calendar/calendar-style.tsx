@@ -81,24 +81,30 @@ export function labelNames(labelIds: readonly string[], style: CalendarStyle): s
   return style.labels.filter((label) => labelIds.includes(label.id)).map((label) => label.name);
 }
 
-/** 캘린더 위 범례: 상태(캘린더에 보이는 것만) + 숨기지 않은 라벨 */
+/** 캘린더 위 범례: 상태(캘린더에 보이는 것만) + 예약 항목 + 숨기지 않은 라벨 */
 const LEGEND_STATUSES: AppointmentStatus[] = ["BOOKED", "CONFIRMED", "ARRIVED", "IN_TREATMENT", "LEFT", "NO_SHOW", "CANCELED_SAME_DAY", "CANCELED_ADVANCE"];
+
+/** 칸 색 규칙(blockPaint) — 화면에는 범례에서 이 한 줄로만 설명한다 (S-5) */
+export const COLOR_RULE_TEXT = "칸 색은 라벨 → 예약 항목 → 상태 순서로 먼저 있는 색입니다(라벨이 여러 개면 [편집] 목록에서 위에 있는 라벨). 왼쪽 굵은 띠는 늘 상태 색입니다.";
 
 export function CalendarLegend({ style }: { style: CalendarStyle }) {
   const labels = style.labels.filter((label) => label.isActive);
   const items = Object.entries(style.itemColors ?? {});
+  const groups = [
+    { title: "라벨", chips: labels.map((label) => ({ key: label.id, color: label.color, name: label.name })) },
+    { title: "예약 항목", chips: items.map(([item, color]) => ({ key: `item-${item}`, color, name: item })) },
+    { title: "상태", chips: LEGEND_STATUSES.map((status) => ({ key: status, color: style.statusStyles[status].color, name: style.statusStyles[status].name })) },
+  ].filter((group) => group.chips.length > 0);
   return (
-    <div aria-label="색 범례" className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-slate-800">
-      {LEGEND_STATUSES.map((status) => (
-        <ColorChip key={status} color={style.statusStyles[status].color} name={style.statusStyles[status].name} />
-      ))}
-      {items.length > 0 && <span aria-hidden className="text-slate-300">|</span>}
-      {items.map(([item, color]) => (
-        <ColorChip key={`item-${item}`} color={color} name={item} />
-      ))}
-      {labels.length > 0 && <span aria-hidden className="text-slate-300">|</span>}
-      {labels.map((label) => (
-        <ColorChip key={label.id} color={label.color} name={label.name} />
+    <div role="group" aria-label="색 범례" className="flex flex-col gap-1.5 text-sm text-slate-800">
+      <p className="text-slate-600">{COLOR_RULE_TEXT}</p>
+      {groups.map((group) => (
+        <div key={group.title} className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="w-16 shrink-0 font-semibold text-slate-600">{group.title}</span>
+          {group.chips.map((chip) => (
+            <ColorChip key={chip.key} color={chip.color} name={chip.name} />
+          ))}
+        </div>
       ))}
     </div>
   );

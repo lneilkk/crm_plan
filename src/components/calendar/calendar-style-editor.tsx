@@ -81,7 +81,7 @@ export function CalendarStyleEditor({
       <Card className="p-3">
         <CardTitle>색 라벨</CardTitle>
         <p className="mb-3 text-sm text-slate-600">
-          예약에 여러 개를 붙일 수 있습니다. 칸 색은 붙은 라벨 중 <strong>이 목록에서 가장 위에 있는 라벨</strong>의 색입니다(라벨이 없으면 상태 색).
+          예약에 여러 개를 붙일 수 있습니다. 여러 개가 붙으면 <strong>이 목록에서 위에 있는 라벨</strong>의 색으로 칠합니다.
           금액 라벨을 맨 위에 두면 금액마다 다른 색으로 보입니다. 환자 이름·전화번호·진료 내용은 라벨 이름에 쓰지 마세요.
         </p>
         <ol className="flex flex-col gap-2">

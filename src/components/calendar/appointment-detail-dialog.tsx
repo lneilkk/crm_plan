@@ -452,7 +452,7 @@ function LabelSection({
   return (
     <div className="flex flex-col gap-2">
       <p id="detail-labels-title" className="text-base font-semibold text-slate-800">
-        색 라벨 <span className="text-sm font-normal text-slate-500">(칸 색은 편집 탭 순서상 가장 위 라벨)</span>
+        색 라벨
       </p>
       <LabelPicker style={style} value={value} onChange={setValue} idPrefix="detail" disabled={save.isPending} />
       <div className="flex items-center gap-3">

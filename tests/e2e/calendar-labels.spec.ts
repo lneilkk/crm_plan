@@ -68,20 +68,43 @@ test.describe("예약 색 라벨과 칸 크기", () => {
     await page.context().close();
   });
 
-  test("가로규격을 200px로 바꾸면 열이 넓어지고 새로고침해도 유지된다", async ({ page }) => {
+  test("표시 옵션은 [보기 설정] 하나에 있다(S-5): 가로규격을 200px로 바꾸면 열이 넓어지고 새로고침해도 유지된다", async ({ page }) => {
     const api = await apiAs("front1");
     await expectClinicOpenToday(api);
     await api.dispose();
     await login(page, "front1");
     await page.goto("/calendar");
-    await page.getByLabel("가로규격").selectOption("200");
+    // 캘린더 위에는 표시 옵션이 따로 나와 있지 않다
+    await expect(page.getByLabel("가로규격")).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "열 기준" })).toHaveCount(0);
+    const open = page.getByRole("button", { name: /^보기 설정/ });
+    await expect(open).toHaveAttribute("aria-expanded", "false");
+    await open.click();
+    const panel = page.getByRole("group", { name: "보기 설정" });
+    await expect(panel.getByRole("group", { name: "열 기준" })).toBeVisible();
+    await panel.getByLabel("가로규격").selectOption("200");
     const firstCell = page.getByRole("button", { name: / 예약 등록$/ }).first();
     // 열 왼쪽 테두리(1px)만큼 칸이 좁다
     await expect.poll(async () => Math.round((await firstCell.boundingBox())?.width ?? 0)).toBeGreaterThanOrEqual(198);
     expect(Math.round((await firstCell.boundingBox())?.width ?? 0)).toBeLessThanOrEqual(200);
+    // Esc로 닫힌다
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await expect(open).toBeFocused();
     await page.reload();
-    await expect(page.getByLabel("가로규격")).toHaveValue("200");
-    await page.getByLabel("세로규격").selectOption("large");
-    await expect(page.getByLabel("세로규격")).toHaveValue("large");
+    await page.getByRole("button", { name: /^보기 설정/ }).click();
+    await expect(panel.getByLabel("가로규격")).toHaveValue("200");
+    await panel.getByLabel("세로규격").selectOption("large");
+    await expect(panel.getByLabel("세로규격")).toHaveValue("large");
+    // 열 기준을 의사별로 바꾸면 버튼에도 나온다. 바깥을 누르면 닫힌다
+    await panel.getByRole("button", { name: "의사별" }).click();
+    await expect(page.getByRole("button", { name: /^보기 설정 · 의사별/ })).toBeVisible();
+    await page.getByRole("heading", { name: "예약 캘린더" }).click();
+    await expect(panel).toHaveCount(0);
+    // 범례에 색 규칙이 한 번 적혀 있다
+    await expect(page.getByRole("group", { name: "색 범례" }).getByText(/칸 색은 라벨 → 예약 항목 → 상태/)).toHaveCount(1);
+    // 주 보기에는 일 보기 전용 옵션이라 버튼이 없다
+    await page.getByRole("group", { name: "보기" }).getByRole("button", { name: "주" }).click();
+    await expect(page.getByRole("button", { name: /^보기 설정/ })).toHaveCount(0);
   });
 });
