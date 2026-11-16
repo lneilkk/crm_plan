@@ -10,7 +10,7 @@
  * 0. 개발 서버의 Turbopack 디스크 캐시(.next/dev/cache/turbopack)를 지운다. 코드를 바꾼 직후 남은 캐시와 어긋나면
  *    개발 서버가 브라우저에 전체 새로고침을 계속 보내(1분에 수백 번) 모든 시나리오가 시간 초과로 실패했다(2026-11-12 확인).
  *    빌드 캐시일 뿐이라 지워도 데이터는 없어지지 않는다(첫 컴파일만 느려진다).
- * 6. E2E DB만: 시나리오 전용 체어(E1~E3)를 가짜 데이터 뒤에 더한다. 가짜 예약이 실행 시각 근처의 체어를
+ * 6. E2E DB만: 시나리오 전용 체어(E1~E4)를 가짜 데이터 뒤에 더한다. 가짜 예약이 실행 시각 근처의 체어를
  *    모두 채우면 '이미 시작한 예약'을 만들 자리가 없어 시나리오가 실패하므로(실행 시각에 따라 달라짐),
  *    가짜 예약이 없는 체어를 둔다.
  *
@@ -58,13 +58,13 @@ async function openSundays(url: string): Promise<void> {
   }
 }
 
-/** 시나리오 전용 체어 3개를 체어 목록 끝에 더한다. crm_e2e에서만 부른다. */
+/** 시나리오 전용 체어 4개를 체어 목록 끝에 더한다. crm_e2e에서만 부른다. E4는 board-refresh.spec(T5-4)만 쓴다 */
 async function addScenarioChairs(url: string): Promise<void> {
   assertE2eDatabaseUrl(url);
   const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 5000 });
   await client.connect();
   try {
-    const extra = [1, 2, 3].map((n) => ({ code: `E${n}`, name: `시험${n}`, kind: "CHAIR" }));
+    const extra = [1, 2, 3, 4].map((n) => ({ code: `E${n}`, name: `시험${n}`, kind: "CHAIR" }));
     const { rowCount } = await client.query(`UPDATE clinic_setting SET chairs = chairs || $1::jsonb WHERE id = 1`, [
       JSON.stringify(extra),
     ]);

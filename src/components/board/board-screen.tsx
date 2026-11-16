@@ -15,7 +15,8 @@ import { RescheduleDialog, type RescheduleValues } from "./reschedule-dialog";
 import { allowsArea } from "@/lib/auth/screen-registry";
 import { useClinicSettings, useMe } from "@/components/shared/queries";
 
-const POLL_MS = 10_000;
+/** 다른 PC에서 바꾼 상태가 10초 안에 보이도록(T5-4) 5초마다 다시 읽는다 — 응답 시간을 더해도 여유가 있다 */
+const POLL_MS = 5_000;
 const UNDO_MS = 5_000;
 export const BOARD_QUERY_KEY = ["board"] as const;
 const STATUS_CHANGED_MESSAGE = "다른 PC에서 상태가 바뀌었습니다. 최신 상태로 다시 불러왔습니다.";
@@ -46,7 +47,8 @@ const STATUS_TONE: Partial<Record<AppointmentStatus, BadgeTone>> = {
  * 오늘의 내원 보드 — T5-3 (기획서 4-2).
  * - 상단 요약, 전화번호 뒷 4자리 빠른 검색, 시각순 목록, 행마다 [내원] [노쇼] [취소] [변경].
  * - [내원]은 한 번 누르면 저장되고 5초 동안 되돌리기를 보여 준다. 노쇼·당일취소는 사유를 고르는 순간 저장된다.
- * - 버튼·지각·미확인 강조는 서버가 서버 시각으로 계산해 보낸다(GET /api/board). 10초마다, 그리고 저장할 때마다 다시 읽는다.
+ * - 버튼·지각·미확인 강조는 서버가 서버 시각으로 계산해 보낸다(GET /api/board). 5초마다, 그리고 저장할 때마다 다시 읽는다(T5-4).
+ * - 예약 시각이 지나도 결과가 없으면 주황, 노쇼 유예시간까지 지나면 빨강 + 상단 알림(T5-4). 시간이 흐르면 다시 읽을 때 저절로 바뀐다.
  * - 다른 PC가 먼저 바꿨으면(409 STATUS_CHANGED) 다시 읽고 알린다.
  * - 의사(visit.write 없음)는 보기만 한다. 실제 차단은 API의 권한 검사다.
  */
