@@ -26,6 +26,7 @@ import type { Permission } from "@/lib/auth/permissions";
 import { SurgeryNoteSection, SurgeryParticipantsSection } from "./surgery-section";
 import { Badge, Button, Dialog, FieldError, Input, Label, Select, Spinner } from "@/components/ui";
 import { AppointmentEditSection } from "./appointment-edit-section";
+import { AppointmentActions } from "./appointment-actions";
 import { type CalendarStyle, ColorChip, LabelPicker } from "./calendar-style";
 import { type AppointmentDetail, type CalendarAppointment, type DoctorOption, STATUS_TONE } from "./types";
 import { type AppointmentDetailSection, detailSectionsFor } from "@/lib/auth/screen-registry";
@@ -208,11 +209,18 @@ function DetailBody({
             <Row label="등록">{dateTimeLabel(data.createdAt)}</Row>
           </dl>
 
-          {canWrite && !editing && (
-            <div>
-              <Button variant="secondary" onClick={() => setEditing(true)}>
-                고치기
-              </Button>
+          {!editing && (
+            <div className="flex flex-wrap items-start gap-2">
+              {canWrite && (
+                <Button variant="secondary" onClick={() => setEditing(true)}>
+                  고치기
+                </Button>
+              )}
+              {/* 앞날 예약의 변경·취소 (T4-3) — 권한별로 버튼이 보인다 */}
+              <AppointmentActions data={data} chairs={chairs} today={today} onDone={async (message) => {
+                onLabelsSaved(message);
+                await onMoved();
+              }} />
             </div>
           )}
           {canWrite && editing && (

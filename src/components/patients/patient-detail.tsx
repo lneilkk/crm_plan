@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { apiFetch } from "@/lib/auth/api-client";
-import { APPOINTMENT_STATUS_LABEL } from "@/lib/domain/appointment";
+import { APPOINTMENT_STATUS_LABEL, type AppointmentStatus, VISIT_REASON_LABEL } from "@/lib/domain/appointment";
 import { GENDER_LABEL, REFERRAL_SOURCE_LABEL } from "@/lib/domain/patient";
-import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
+import { formatKstDateLabel, formatKstShortDate, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import type { PatientAppointmentItem, PatientDetail as Detail } from "@/server/patients/service";
 import { Badge, Button, Card, CardTitle, EmptyState, Spinner, Table, TBody, Td, Th, THead, Tr } from "@/components/ui";
 import { PatientForm } from "./patient-form";
@@ -102,13 +102,14 @@ export function PatientDetail({ id }: { id: string }) {
                 <Th>예약 항목</Th>
                 <Th>체어</Th>
                 <Th>상태</Th>
+                <Th>변경 이력</Th>
               </tr>
             </THead>
             <TBody>
               {appointments.map((a) => {
                 const start = new Date(a.startAt);
                 return (
-                  <Tr key={a.id}>
+                  <Tr key={a.id} id={`appt-${a.id}`} className="target:bg-amber-50">
                     <Td className="tabular-nums">
                       {formatKstDateLabel(kstDateKey(start))} {formatKstTime(start)}
                     </Td>
@@ -116,6 +117,9 @@ export function PatientDetail({ id }: { id: string }) {
                     <Td>{a.chair}</Td>
                     <Td>
                       <Badge>{APPOINTMENT_STATUS_LABEL[a.status]}</Badge>
+                    </Td>
+                    <Td>
+                      <ChangeHistory item={a} />
                     </Td>
                   </Tr>
                 );
@@ -125,6 +129,46 @@ export function PatientDetail({ id }: { id: string }) {
         )}
       </Card>
     </div>
+  );
+}
+
+const when = (iso: string) => {
+  const at = new Date(iso);
+  return `${formatKstShortDate(kstDateKey(at))} ${formatKstTime(at)}`;
+};
+
+/** 지금 상태를 기록한 내용을 보여 줄 상태 — 예약확정(처음 등록)은 등록 기록이라 따로 적지 않는다 */
+const CHANGE_SHOWN: readonly AppointmentStatus[] = ["RESCHEDULED", "CANCELED_ADVANCE", "CANCELED_SAME_DAY", "NO_SHOW"];
+
+/**
+ * 예약 한 건의 변경 이력 (T4-3) — 원 예약 ← / → 새 예약(눌러서 그 줄로 이동), 취소·노쇼·변경을 누가 언제 왜 기록했는지.
+ */
+function ChangeHistory({ item }: { item: PatientAppointmentItem }) {
+  const change = item.lastChange && CHANGE_SHOWN.includes(item.status) ? item.lastChange : null;
+  if (!item.rescheduledFrom && !item.rescheduledTo && !change) return <span className="text-slate-400">-</span>;
+  return (
+    <ul className="flex flex-col gap-0.5 text-sm">
+      {item.rescheduledFrom && (
+        <li>
+          <a href={`#appt-${item.rescheduledFrom.id}`} className="text-blue-800 underline">
+            {when(item.rescheduledFrom.startAt)} 예약에서 변경
+          </a>
+        </li>
+      )}
+      {item.rescheduledTo && (
+        <li>
+          →{" "}
+          <a href={`#appt-${item.rescheduledTo.id}`} className="text-blue-800 underline">
+            {when(item.rescheduledTo.startAt)}(으)로 변경
+          </a>
+        </li>
+      )}
+      {change && (
+        <li className="text-slate-600">
+          {when(change.at)} {change.staffName} 기록{change.reasonCode && ` · 사유 ${VISIT_REASON_LABEL[change.reasonCode]}`}
+        </li>
+      )}
+    </ul>
   );
 }
 

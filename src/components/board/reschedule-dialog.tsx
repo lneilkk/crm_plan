@@ -5,13 +5,15 @@ import { ApiRequestError } from "@/lib/auth/api-client";
 import type { Chair } from "@/lib/domain/clinic";
 import { isValidDateKey, isValidTime, kstDateKey, kstDateTime } from "@/lib/time/kst";
 import { Button, Dialog, FieldError, Input, Label, Select } from "@/components/ui";
-import type { BoardRow } from "@/server/board/rows";
 
 export type RescheduleValues = { startAt: Date; chair: string; durationMin: number };
 
+/** 바꿀 예약 — 내원 보드 행과 예약 상세(캘린더)가 함께 쓴다 (T4-3) */
+export type RescheduleTarget = { startAt: string; time: string; chair: string; durationMin: number; nameMasked: string };
+
 /**
  * [변경] — 새 날짜·시각(과 체어·소요시간)을 정해 예약변경(POST /api/appointments/[id]/reschedule).
- * 저장은 부모가 한다(onSubmit). 서버 오류(자리 겹침 등)는 이 창 안에 보여 준다.
+ * 저장은 부모가 한다(onSubmit). 서버 오류(자리 겹침 등)는 이 창 안에 보여 준다. 내원 보드와 예약 상세가 함께 쓴다.
  */
 export function RescheduleDialog({
   row,
@@ -21,7 +23,7 @@ export function RescheduleDialog({
   onSubmit,
   onClose,
 }: {
-  row: BoardRow;
+  row: RescheduleTarget;
   chairs: Chair[];
   pending: boolean;
   error: unknown;

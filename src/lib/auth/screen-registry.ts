@@ -16,6 +16,8 @@ export const SCREEN_AREAS = {
   // 예약 캘린더·예약 상세
   "appointment.view": { label: "예약 상세 — 기본 정보(일시·체어·담당·항목·메모·상태 이력)", permission: "appointment.read" },
   "appointment.write": { label: "예약 등록·옮기기·[고치기]·라벨·[예약변경]", permission: "appointment.write" },
+  "appointment.reschedule": { label: "예약 상세 — [예약변경](다른 날짜로, 원 예약과 연결)", permission: "appointment.write" },
+  "appointment.cancel": { label: "예약 상세 — [취소](예약일 전이면 사전취소, 당일이면 당일취소·사유)", permission: "visit.write" },
   "appointment.price": { label: "예약 금액(단가·할인율)·실적 금액·항목 단가", permission: "appointment.price" },
   "calendar.settings": { label: "[편집] — 병원 설정 하위 메뉴(예약 항목·라벨·체어·진료시간·첫 화면 등)", permission: "settings.write" },
   "settings.staff": { label: "[편집] — 직원(계정·개인 추가 권한)", permission: "staff.manage" },

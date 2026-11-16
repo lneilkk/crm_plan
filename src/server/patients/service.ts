@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
-import { ARRIVED_STATUSES, type AppointmentStatus } from "@/lib/domain/appointment";
+import { ARRIVED_STATUSES, type AppointmentStatus, type VisitReasonCode } from "@/lib/domain/appointment";
 import type { Gender, ReferralSource, VisitType } from "@/lib/domain/patient";
 import { maskName } from "@/lib/masking";
 import { isSamePersonName } from "@/lib/patients/new-patient";
@@ -178,7 +178,46 @@ export type PatientAppointmentItem = {
   status: AppointmentStatus;
   treatmentItem: string;
   chair: string;
+  /** 예약변경으로 만든 예약이면 원 예약 (T4-3) */
+  rescheduledFrom: { id: string; startAt: string } | null;
+  /** 예약변경된 예약이면 새로 잡은 예약 (T4-3) */
+  rescheduledTo: { id: string; startAt: string } | null;
+  /** 지금 상태로 바꾼 기록 — 언제·사유·입력자(직원 이름). 상태 이력(visit_status_log)의 마지막 행 */
+  lastChange: { at: string; reasonCode: VisitReasonCode | null; staffName: string } | null;
 };
+
+/**
+ * 고객 상세의 예약 이력에 변경 이력을 붙인다 (T4-3: 변경 이력을 고객 상세에서 추적).
+ * 예약변경은 원 예약 ↔ 새 예약을 서로 가리키게 하고, 각 예약의 지금 상태를 누가 언제 왜 바꿨는지 붙인다.
+ */
+async function withChangeHistory(
+  rows: { id: string; startAt: Date; durationMin: number; status: AppointmentStatus; treatmentItem: string; chair: string; originalAppointmentId: string | null }[],
+): Promise<PatientAppointmentItem[]> {
+  const ids = rows.map((row) => row.id);
+  const originalIds = rows.flatMap((row) => (row.originalAppointmentId ? [row.originalAppointmentId] : []));
+  const [originals, children, logs] = await Promise.all([
+    db.appointment.findMany({ where: { id: { in: originalIds } }, select: { id: true, startAt: true } }),
+    db.appointment.findMany({ where: { originalAppointmentId: { in: ids } }, select: { id: true, startAt: true, originalAppointmentId: true }, orderBy: { createdAt: "asc" } }),
+    db.visitStatusLog.findMany({
+      where: { appointmentId: { in: ids } },
+      select: { appointmentId: true, toStatus: true, reasonCode: true, createdAt: true, staff: { select: { name: true } } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    }),
+  ]);
+  const ref = (a: { id: string; startAt: Date }) => ({ id: a.id, startAt: a.startAt.toISOString() });
+  return rows.map(({ originalAppointmentId, ...row }) => {
+    const original = originals.find((a) => a.id === originalAppointmentId);
+    const child = children.find((a) => a.originalAppointmentId === row.id);
+    const log = logs.find((l) => l.appointmentId === row.id && l.toStatus === row.status);
+    return {
+      ...row,
+      startAt: row.startAt.toISOString(),
+      rescheduledFrom: original ? ref(original) : null,
+      rescheduledTo: child ? ref(child) : null,
+      lastChange: log ? { at: log.createdAt.toISOString(), reasonCode: log.reasonCode, staffName: log.staff.name } : null,
+    };
+  });
+}
 
 export async function getPatientDetail(
   id: string,
@@ -187,7 +226,7 @@ export async function getPatientDetail(
     where: { id },
     include: {
       appointments: {
-        select: { id: true, startAt: true, durationMin: true, status: true, treatmentItem: true, chair: true },
+        select: { id: true, startAt: true, durationMin: true, status: true, treatmentItem: true, chair: true, originalAppointmentId: true },
         orderBy: [{ startAt: "desc" }, { id: "desc" }],
         take: APPOINTMENT_HISTORY_MAX,
       },
@@ -212,7 +251,7 @@ export async function getPatientDetail(
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     },
-    appointments: row.appointments.map((a) => ({ ...a, startAt: a.startAt.toISOString() })),
+    appointments: await withChangeHistory(row.appointments),
   };
 }
 
