@@ -105,6 +105,4 @@ export const searchPatientsQuery = z
     path: ["appointmentDate"],
   });
 
-export type SearchPatientsQuery = z.output<typeof searchPatientsQuery>;
-
 export const patientIdParams = z.object({ id: z.uuid() });

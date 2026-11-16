@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
+import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import {
   buildColumns,
   businessHoursOf,
@@ -44,6 +44,7 @@ import { APPOINTMENTS_QUERY_KEY, type CalendarAppointment, type DoctorOption } f
 import { ViewSettings } from "./view-settings";
 import { WeekView } from "./week-view";
 import { allowsArea } from "@/lib/auth/screen-registry";
+import { useClinicSettings, useMe, useStaffOptions } from "@/components/shared/queries";
 
 type ViewMode = "day" | "week";
 
@@ -55,17 +56,9 @@ const POLL_MS = 30_000;
  * 의사(DOCTOR)는 보기만 한다(appointment.write 없음). 실제 차단은 API의 권한 검사다.
  */
 export function CalendarScreen() {
-  const me = useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: 60_000 });
-  const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => apiFetch<ClinicSettings>("/api/settings"),
-    staleTime: 60_000,
-  });
-  const doctors = useQuery({
-    queryKey: ["staff", "DOCTOR"],
-    queryFn: () => apiFetch<{ staff: DoctorOption[] }>("/api/staff?role=DOCTOR"),
-    staleTime: 60_000,
-  });
+  const me = useMe();
+  const settings = useClinicSettings();
+  const doctors = useStaffOptions("DOCTOR");
   // 색 설정을 못 읽어도 캘린더는 기본 색으로 보여 준다.
   const calendarStyle = useCalendarStyle();
 

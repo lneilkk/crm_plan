@@ -1,16 +1,17 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, Suspense, useEffect } from "react";
-import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
+import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import { NAV_SECTIONS } from "@/lib/auth/permissions";
 import { STAFF_ROLE_LABEL } from "@/lib/domain/staff";
 import { Button, cn, Spinner } from "@/components/ui";
 import { allowsScreen, screenForPath } from "@/lib/auth/screen-registry";
 import type { Permission } from "@/lib/auth/permissions";
 import { NoPermission } from "@/components/auth/no-permission";
+import { useMe } from "@/components/shared/queries";
 
 /** 상단 바에 보이는 병원 이름. 병원 설정에 이름 항목이 생기면 그 값으로 바꾼다. */
 export const CLINIC_DISPLAY_NAME = "치과 CRM";
@@ -23,11 +24,7 @@ export const CLINIC_DISPLAY_NAME = "치과 CRM";
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const me = useQuery({
-    queryKey: ME_QUERY_KEY,
-    queryFn: () => apiFetch<Me>("/api/auth/me"),
-    staleTime: 60_000,
-  });
+  const me = useMe();
 
   const unauthenticated = me.error instanceof ApiRequestError && me.error.status === 401;
   useEffect(() => {

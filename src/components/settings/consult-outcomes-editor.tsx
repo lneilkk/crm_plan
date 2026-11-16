@@ -6,6 +6,8 @@ import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import { isHexColor } from "@/lib/calendar/colors";
 import { CONSULT_OUTCOME_KIND_LABEL, CONSULT_OUTCOME_KINDS, type ConsultOutcome, type ConsultOutcomeKind } from "@/lib/domain/consult";
 import { Button, Card, CardTitle, FieldError, Input, Select, Spinner } from "@/components/ui";
+import { OrderButtons, RemoveButton } from "./list-controls";
+import { moveItem } from "@/lib/list";
 
 type Draft = ConsultOutcome & { key: string };
 let seq = 0;
@@ -48,14 +50,13 @@ function Editor({ initial, onSaved }: { initial: ConsultOutcome[]; onSaved: (mes
         {rows.map((r, i) => (
           <li key={r.key} className="flex flex-wrap items-center gap-1.5" aria-label={`상담 결과 ${i + 1}`}>
             <span className="w-5 text-right text-xs text-slate-500">{i + 1}</span>
-            <Button variant="ghost" aria-label={`${r.name} 위로`} disabled={i === 0} onClick={() => setRows((l) => { const n = [...l]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; })}>▲</Button>
-            <Button variant="ghost" aria-label={`${r.name} 아래로`} disabled={i === rows.length - 1} onClick={() => setRows((l) => { const n = [...l]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; })}>▼</Button>
+            <OrderButtons name={r.name} index={i} count={rows.length} onMove={(index, delta) => setRows((l) => moveItem(l, index, delta))} />
             <input type="color" aria-label={`${r.name} 색`} className="h-9 w-10 cursor-pointer rounded border border-slate-300 p-0.5" value={isHexColor(r.color) ? r.color.toLowerCase() : "#000000"} onChange={(e) => update(r.key, { color: e.target.value.toUpperCase() })} />
             <Input aria-label={`상담 결과 ${i + 1} 이름`} className="w-32" maxLength={12} value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} />
             <Select aria-label={`${r.name} 종류`} className="w-auto" value={r.kind} onChange={(e) => update(r.key, { kind: e.target.value as ConsultOutcomeKind })}>
               {CONSULT_OUTCOME_KINDS.map((k) => <option key={k} value={k}>{CONSULT_OUTCOME_KIND_LABEL[k]}</option>)}
             </Select>
-            <Button variant="ghost" className="text-red-700" aria-label={`${r.name} 삭제`} onClick={() => setRows((l) => l.filter((x) => x.key !== r.key))}>삭제</Button>
+            <RemoveButton name={r.name} onRemove={() => setRows((l) => l.filter((x) => x.key !== r.key))} />
           </li>
         ))}
       </ol>

@@ -181,9 +181,9 @@
 
 | 하위 메뉴 | 컴포넌트 | 쓰는 API (권한) |
 | --- | --- | --- |
-| 예약 항목 | `calendar/treatment-items-editor.tsx` | PUT /api/settings/treatment-items (settings.write) |
-| 색 라벨 | `calendar/calendar-style-editor.tsx` (section=labels) | PUT /api/settings/calendar-style (settings.write) |
-| 상태 표시 | `calendar/calendar-style-editor.tsx` (section=statuses) | PUT /api/settings/calendar-style (settings.write) |
+| 예약 항목 | `settings/treatment-items-editor.tsx` | PUT /api/settings/treatment-items (settings.write) |
+| 색 라벨 | `settings/calendar-style-editor.tsx` (section=labels) | PUT /api/settings/calendar-style (settings.write) |
+| 상태 표시 | `settings/calendar-style-editor.tsx` (section=statuses) | PUT /api/settings/calendar-style (settings.write) |
 | 체어·열 | `settings/chairs-editor.tsx` | PUT /api/settings/chairs (settings.write) |
 | 상담 결과 | `settings/consult-outcomes-editor.tsx` | GET·PUT /api/settings/consult-outcomes (settings.read / settings.write) |
 | 진료시간·기준 | `settings/clinic-rules-editor.tsx` | PUT /api/settings/clinic (settings.write) |
@@ -285,6 +285,18 @@
 | 큰 파일 | `calendar-screen.tsx` 537줄, `board-screen.tsx` 496줄, `booking-dialog.tsx` 494줄, `appointment-detail-dialog.tsx` 428줄 | 상세 창은 S-5에서 권한 단위 영역으로 나눌 때 같이 쪼갠다. |
 
 쓰지 않는 코드는 이번 조사에서 따로 찾지 않았다. S-6에서 도구(타입 검사의 미사용 export 검사 등)로 찾는다.
+
+**S-6 정리 결과 (2026-11-16, 동작 변화 없음)**
+
+| 후보 | 한 일 |
+| --- | --- |
+| 목록 편집기 4벌 | 순서 버튼(▲▼)·삭제 버튼을 `settings/list-controls.tsx`(OrderButtons·RemoveButton)로, 순서 바꾸기를 `src/lib/list.ts`(moveItem)로 모았다. 각 편집기의 행 구성(`Draft` 타입·입력칸)은 항목마다 달라 그대로 두었다. |
+| 설정 편집기의 폴더 위치 | 예약 항목·색 라벨·상태 표시 편집기를 `calendar/`에서 `settings/`로 옮겼다. [편집]의 하위 메뉴는 모두 `settings/`에 있다. |
+| 직원 목록·내 정보·병원 설정 조회 반복 | `components/shared/queries.ts`의 `useStaffOptions`·`useMe`·`useClinicSettings` 하나씩으로 모았다(조회 키는 그대로라 캐시도 같다). 내 정보 조회 9곳, 병원 설정 조회 4곳, 직원 목록 조회 6곳이 이것을 쓴다. |
+| 고객 고르기 부품의 위치 | `PatientPicker`를 `patients/patient-picker.tsx`로 옮겼다. 예약 등록과 상담 등록이 함께 쓴다. |
+| 권한 없음 안내 | 통계 화면 안의 따로 만든 안내를 지우고 화면 진입 검사와 같은 `auth/no-permission.tsx`를 쓴다. |
+| 쓰지 않는 코드 | TypeScript 컴파일러로 모든 export의 사용처를 세어(테스트·스크립트 포함) 아무 데서도 쓰지 않는 것 4개를 찾았다. `getSessionStaff`(세션 함수), `ConsultListItem`·`SearchPatientsQuery`(타입)는 지웠다. `CONSENT_TYPE_LABEL`은 R2 동의 이력 Task에서 쓸 것이라 남겼다. 쓰지 않는 파일·지역 변수·의존성은 없었다. |
+| 큰 파일 | `booking-dialog.tsx`는 고객 고르기를 옮겨 494줄 → 273줄. 예약 상세는 S-5에서 영역별로 나눴다. 캘린더·내원 보드 화면은 그대로 두었다(나눠도 동작·테스트 이득이 작다). |
 
 ## 6. 확장 계획 초안과 지금의 차이 (S-2·S-4 전에 정할 것)
 

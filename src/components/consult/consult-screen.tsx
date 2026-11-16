@@ -2,10 +2,10 @@
 
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
+import { apiFetch } from "@/lib/auth/api-client";
+import { useClinicSettings, useMe, useStaffOptions } from "@/components/shared/queries";
 import { readableTextColor } from "@/lib/calendar/colors";
 import { type ConsultOutcome, CONSULT_OUTCOME_KIND_LABEL, summarizeConsultations } from "@/lib/domain/consult";
-import type { ClinicSettings } from "@/lib/domain/clinic";
 import { addDays, type DateKey, formatKstDateLabel, formatKstShortDate, formatKstTime, isValidDateKey, kstDateKey } from "@/lib/time/kst";
 import { Badge, Button, cn, EmptyState, Input, Spinner, Toast, type ToastTone } from "@/components/ui";
 import { ConsultDetailDialog } from "./consult-detail-dialog";
@@ -26,6 +26,7 @@ export type ConsultItem = {
   appointment: { id: string; startAt: string; treatmentItem: string; status: string } | null;
 };
 
+/** 상담 화면에서 쓰는 직원 이름표(열·드롭다운) */
 export type StaffOption = { id: string; name: string };
 
 /**
@@ -40,10 +41,10 @@ export function ConsultScreen() {
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState<{ id: number; message: string; tone: ToastTone } | null>(null);
 
-  const me = useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: 60_000 });
-  const settings = useQuery({ queryKey: ["settings"], queryFn: () => apiFetch<ClinicSettings>("/api/settings"), staleTime: 60_000 });
-  const counselors = useQuery({ queryKey: ["staff", "COUNSELOR"], queryFn: () => apiFetch<{ staff: StaffOption[] }>("/api/staff?role=COUNSELOR"), staleTime: 60_000 });
-  const doctors = useQuery({ queryKey: ["staff", "DOCTOR"], queryFn: () => apiFetch<{ staff: StaffOption[] }>("/api/staff?role=DOCTOR"), staleTime: 60_000 });
+  const me = useMe();
+  const settings = useClinicSettings();
+  const counselors = useStaffOptions("COUNSELOR");
+  const doctors = useStaffOptions("DOCTOR");
   const list = useQuery({
     queryKey: ["consultations", date],
     queryFn: () => apiFetch<{ items: ConsultItem[]; outcomes: ConsultOutcome[] }>(`/api/consultations?date=${date}`),

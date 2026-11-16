@@ -2,9 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
+import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import { APPOINTMENT_CHANNEL_LABEL, APPOINTMENT_STATUS_LABEL, type AppointmentStatus, type VisitReasonCode } from "@/lib/domain/appointment";
-import type { ClinicSettings } from "@/lib/domain/clinic";
 import { REFERRAL_SOURCE_LABEL } from "@/lib/domain/patient";
 import { formatKstDateLabel, formatKstShortDate, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import { Badge, type BadgeTone, Button, cn, EmptyState, Input, Spinner, Toast, type ToastTone } from "@/components/ui";
@@ -14,6 +13,7 @@ import type { PatientListItem } from "@/server/patients/service";
 import { ReasonDialog } from "./reason-dialog";
 import { RescheduleDialog, type RescheduleValues } from "./reschedule-dialog";
 import { allowsArea } from "@/lib/auth/screen-registry";
+import { useClinicSettings, useMe } from "@/components/shared/queries";
 
 const POLL_MS = 10_000;
 const UNDO_MS = 5_000;
@@ -52,17 +52,13 @@ const STATUS_TONE: Partial<Record<AppointmentStatus, BadgeTone>> = {
  */
 export function BoardScreen() {
   const queryClient = useQueryClient();
-  const me = useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: 60_000 });
+  const me = useMe();
   const board = useQuery({
     queryKey: BOARD_QUERY_KEY,
     queryFn: () => apiFetch<BoardResponse>("/api/board"),
     refetchInterval: POLL_MS,
   });
-  const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => apiFetch<ClinicSettings>("/api/settings"),
-    staleTime: 60_000,
-  });
+  const settings = useClinicSettings();
 
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<ToastState | null>(null);

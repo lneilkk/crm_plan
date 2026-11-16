@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import { SLOT_HOLDING_STATUSES } from "@/lib/domain/appointment";
@@ -10,6 +10,7 @@ import { kstDateKey } from "@/lib/time/kst";
 import { containsResidentRegistrationNumber, MEMO_GUIDE, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
 import { Button, FieldError, Input, Label, Select } from "@/components/ui";
 import type { AppointmentDetail, DoctorOption } from "./types";
+import { useStaffOptions } from "@/components/shared/queries";
 
 const won = (value: number) => `${value.toLocaleString("ko-KR")}원`;
 
@@ -37,12 +38,7 @@ export function AppointmentEditSection({
   today: string;
   onSaved: () => void;
 }) {
-  const counselors = useQuery({
-    queryKey: ["staff", "COUNSELOR"],
-    queryFn: () => apiFetch<{ staff: DoctorOption[] }>("/api/staff?role=COUNSELOR"),
-    staleTime: 60_000,
-    enabled: canWrite,
-  });
+  const counselors = useStaffOptions("COUNSELOR", { enabled: canWrite });
   const [item, setItem] = useState(data.treatmentItem);
   const [chair, setChair] = useState(data.chair);
   const [doctorId, setDoctorId] = useState(data.doctorId ?? "");

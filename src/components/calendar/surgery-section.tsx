@@ -8,8 +8,7 @@ import { formatKstDateLabel, formatKstTime, kstDateKey } from "@/lib/time/kst";
 import { containsResidentRegistrationNumber, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
 import { Badge, Button, FieldError, Spinner } from "@/components/ui";
 import type { AppointmentDetail } from "./types";
-
-type StaffOption = { id: string; name: string; role: StaffRole };
+import { useStaffOptions } from "@/components/shared/queries";
 
 /** 참여 직원 배지 색 — 간호를 눈에 띄게 */
 const PARTICIPANT_TONE: Partial<Record<StaffRole, "info">> = { NURSE: "info" };
@@ -29,12 +28,7 @@ export function SurgeryParticipantsSection({
 }) {
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<string[]>(participants.map((p) => p.staffId));
-  const staff = useQuery({
-    queryKey: ["staff", "all"],
-    queryFn: () => apiFetch<{ staff: StaffOption[] }>("/api/staff"),
-    staleTime: 60_000,
-    enabled: editing,
-  });
+  const staff = useStaffOptions(undefined, { enabled: editing });
   const save = useMutation({
     mutationFn: () => apiFetch(`/api/appointments/${appointmentId}/participants`, { method: "PUT", body: { staffIds: selected } }),
     onSuccess: () => {

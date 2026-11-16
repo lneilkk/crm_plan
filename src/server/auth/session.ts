@@ -125,11 +125,6 @@ export async function getActiveSession(request: Request, now: Date = new Date())
   return { sessionId: session.id, staff: { id, role, permissions, name, loginId } };
 }
 
-/** 요청을 보낸 직원. 세션이 없거나 만료·로그아웃·비활성이면 null */
-export async function getSessionStaff(request: Request, now: Date = new Date()): Promise<SessionStaff | null> {
-  return (await getActiveSession(request, now))?.staff ?? null;
-}
-
 /** 로그아웃. session은 추가 전용 테이블이 아니므로 revoked_at을 UPDATE한다. */
 export async function revokeSession(sessionId: string, now: Date, client: DbClient = db): Promise<void> {
   await client.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: now } });

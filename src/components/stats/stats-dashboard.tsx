@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
+import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import { APPOINTMENT_CHANNEL_LABEL } from "@/lib/domain/appointment";
 import { fillBucketGaps, formatRate, type StatsUnit, type VisitStats } from "@/lib/stats/visit-stats";
 import { formatKstDateLabel, kstDateKey } from "@/lib/time/kst";
@@ -29,20 +29,22 @@ import { bucketLabel, type Period, periodError, PERIOD_PRESETS, type PeriodPrese
 import { PerformanceView } from "./performance-view";
 import { RateChart } from "./rate-chart";
 import { allowsArea } from "@/lib/auth/screen-registry";
+import { useMe } from "@/components/shared/queries";
+import { NoPermission } from "@/components/auth/no-permission";
 
 /**
  * 통계 대시보드 — T7-2 (원장·관리자). 데이터는 GET /api/stats 한 번으로 읽는다.
  * 화면에는 개수와 비율만 있고, 환자를 알아볼 수 있는 값은 없다(API도 돌려주지 않는다).
  */
 export function StatsDashboard() {
-  const me = useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me"), staleTime: 60_000 });
+  const me = useMe();
   if (me.isPending) return <Spinner showLabel />;
   if (me.isError) {
     // 403(권한 없음)만 권한 안내로, 네트워크 오류·서버 오류는 다시 시도할 수 있게 보여 준다.
-    if (me.error instanceof ApiRequestError && me.error.status === 403) return <NoPermission />;
+    if (me.error instanceof ApiRequestError && me.error.status === 403) return <StatsNoPermission />;
     return <LoadError message={me.error instanceof ApiRequestError ? me.error.message : undefined} onRetry={() => me.refetch()} />;
   }
-  if (!allowsArea(me.data.permissions, "stats.view")) return <NoPermission />;
+  if (!allowsArea(me.data.permissions, "stats.view")) return <StatsNoPermission />;
   return <StatsTabs />;
 }
 
@@ -79,9 +81,10 @@ function LoadError({ message, onRetry }: { message?: string; onRetry: () => void
   );
 }
 
-/** 화면 진입 검사(app-shell)가 먼저 막으므로 보통은 닿지 않는다. 권한 기준 문구 (S-4) */
-function NoPermission() {
-  return <EmptyState title="권한이 없습니다" description="통계·실적 보기 권한이 필요합니다. 필요하면 관리자에게 요청하세요." />;
+/** 화면 진입 검사(app-shell)가 먼저 막으므로 보통은 닿지 않는다(쓰는 중에 권한이 빠진 경우 등). 진입 검사와 같은 안내를 쓴다 (S-6) */
+function StatsNoPermission() {
+  const me = useMe();
+  return <NoPermission screen="통계" permission="stats.read" home={me.data?.home ?? "/"} />;
 }
 
 function Dashboard() {
@@ -108,7 +111,7 @@ function Dashboard() {
     setPreset(next);
   }
 
-  if (stats.error instanceof ApiRequestError && stats.error.status === 403) return <NoPermission />;
+  if (stats.error instanceof ApiRequestError && stats.error.status === 403) return <StatsNoPermission />;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">

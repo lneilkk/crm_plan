@@ -9,7 +9,7 @@ import type { ClinicSettings } from "@/lib/domain/clinic";
 import { isPremiumItem } from "@/lib/domain/treatment";
 import { type DateKey, isValidTime, kstDateTime, kstMinutesOfDay } from "@/lib/time/kst";
 import { containsResidentRegistrationNumber, RRN_ERROR_MESSAGE } from "@/lib/validation/forbidden-text";
-import { PatientPicker, type SelectedPatient } from "@/components/calendar/booking-dialog";
+import { PatientPicker, type SelectedPatient } from "@/components/patients/patient-picker";
 import { Button, Dialog, FieldError, Input, Label, Select } from "@/components/ui";
 import type { StaffOption } from "./consult-screen";
 

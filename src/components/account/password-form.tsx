@@ -1,8 +1,8 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { apiFetch, ApiRequestError, type Me, ME_QUERY_KEY } from "@/lib/auth/api-client";
+import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import {
   checkPasswordPolicy,
   PASSWORD_RULE_MESSAGES,
@@ -10,6 +10,7 @@ import {
   type PasswordRule,
 } from "@/lib/auth/password-policy";
 import { Button, Card, FieldError, Input, Label } from "@/components/ui";
+import { useMe } from "@/components/shared/queries";
 
 /**
  * 내 비밀번호 변경 (F-1). 현재 비밀번호 + 새 비밀번호 두 번.
@@ -17,7 +18,7 @@ import { Button, Card, FieldError, Input, Label } from "@/components/ui";
  * 비밀번호는 이 컴포넌트 상태에만 두고, 성공·실패 뒤 바로 지운다. 브라우저 저장은 막는다(기획서 10장).
  */
 export function PasswordForm() {
-  const me = useQuery({ queryKey: ME_QUERY_KEY, queryFn: () => apiFetch<Me>("/api/auth/me") });
+  const me = useMe();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");

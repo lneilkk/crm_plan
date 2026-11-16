@@ -14,7 +14,9 @@ import {
 } from "@/lib/calendar/colors";
 import { APPOINTMENT_STATUSES, APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from "@/lib/domain/appointment";
 import { Button, Card, CardTitle, FieldError, Input } from "@/components/ui";
-import { CALENDAR_STYLE_QUERY_KEY, type CalendarStyle } from "./calendar-style";
+import { CALENDAR_STYLE_QUERY_KEY, type CalendarStyle } from "@/components/calendar/calendar-style";
+import { OrderButtons, RemoveButton } from "./list-controls";
+import { moveItem } from "@/lib/list";
 
 /**
  * 캘린더 [편집] 탭 — F-2, 관리자만(서버는 settings.write로 막는다).
@@ -66,14 +68,7 @@ export function CalendarStyleEditor({
 
   const updateLabel = (key: string, patch: Partial<DraftLabel>) =>
     setLabels((list) => list.map((label) => (label.key === key ? { ...label, ...patch } : label)));
-  const moveLabel = (index: number, delta: number) =>
-    setLabels((list) => {
-      const target = index + delta;
-      if (target < 0 || target >= list.length) return list;
-      const next = [...list];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const moveLabel = (index: number, delta: number) => setLabels((list) => moveItem(list, index, delta));
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,12 +83,7 @@ export function CalendarStyleEditor({
           {labels.map((label, index) => (
             <li key={label.key} className="flex flex-wrap items-center gap-2" aria-label={`라벨 ${index + 1}: ${label.name || "(이름 없음)"}`}>
               <span className="w-6 text-right text-sm tabular-nums text-slate-500">{index + 1}</span>
-              <Button variant="ghost" aria-label={`${label.name} 위로`} disabled={index === 0} onClick={() => moveLabel(index, -1)}>
-                ▲
-              </Button>
-              <Button variant="ghost" aria-label={`${label.name} 아래로`} disabled={index === labels.length - 1} onClick={() => moveLabel(index, 1)}>
-                ▼
-              </Button>
+              <OrderButtons name={label.name} index={index} count={labels.length} onMove={moveLabel} />
               <ColorInput
                 label={`${label.name || "새 라벨"} 색`}
                 value={label.color}
@@ -121,14 +111,7 @@ export function CalendarStyleEditor({
                 />
                 숨기기
               </label>
-              <Button
-                variant="ghost"
-                className="text-red-700"
-                aria-label={`${label.name} 삭제`}
-                onClick={() => setLabels((list) => list.filter((item) => item.key !== label.key))}
-              >
-                삭제
-              </Button>
+              <RemoveButton name={label.name} onRemove={() => setLabels((list) => list.filter((item) => item.key !== label.key))} />
             </li>
           ))}
         </ol>

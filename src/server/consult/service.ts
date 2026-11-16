@@ -68,7 +68,6 @@ function toItem(row: Row) {
       : null,
   };
 }
-export type ConsultListItem = ReturnType<typeof toItem>;
 
 export async function listConsultations(client: DbClient, date: DateKey) {
   const { start, end } = kstDayRange(date);

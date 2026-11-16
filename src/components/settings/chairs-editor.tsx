@@ -5,6 +5,9 @@ import { useState } from "react";
 import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import type { Chair, ClinicSettings } from "@/lib/domain/clinic";
 import { Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
+import { SETTINGS_QUERY_KEY } from "@/components/shared/queries";
+import { OrderButtons, RemoveButton } from "./list-controls";
+import { moveItem } from "@/lib/list";
 
 type Draft = Chair & { key: string; saved: boolean };
 let seq = 0;
@@ -18,13 +21,7 @@ export function ChairsEditor({ settings, onSaved }: { settings: ClinicSettings; 
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Draft[]>(() => settings.chairs.map((c) => ({ ...c, key: `c-${(seq += 1)}`, saved: true })));
   const update = (key: string, patch: Partial<Draft>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const move = (i: number, d: number) =>
-    setRows((list) => {
-      if (i + d < 0 || i + d >= list.length) return list;
-      const next = [...list];
-      [next[i], next[i + d]] = [next[i + d], next[i]];
-      return next;
-    });
+  const move = (i: number, d: number) => setRows((list) => moveItem(list, i, d));
 
   const codes = rows.map((r) => r.code.trim());
   const problems: string[] = [];
@@ -40,7 +37,7 @@ export function ChairsEditor({ settings, onSaved }: { settings: ClinicSettings; 
         body: { chairs: rows.map((r) => ({ code: r.code.trim(), name: r.name.trim(), kind: r.kind, ...(r.group?.trim() ? { group: r.group.trim() } : {}) })) },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
       setRows((list) => list.map((r) => ({ ...r, saved: true })));
       onSaved("체어·열을 저장했습니다.");
     },
@@ -65,8 +62,7 @@ export function ChairsEditor({ settings, onSaved }: { settings: ClinicSettings; 
           {rows.map((r, i) => (
             <tr key={r.key} className="border-t border-slate-100" aria-label={`열 ${i + 1}`}>
               <td className="whitespace-nowrap py-1">
-                <Button variant="ghost" className={C} aria-label={`${r.name} 위로`} disabled={i === 0} onClick={() => move(i, -1)}>▲</Button>
-                <Button variant="ghost" className={C} aria-label={`${r.name} 아래로`} disabled={i === rows.length - 1} onClick={() => move(i, 1)}>▼</Button>
+                <OrderButtons name={r.name} index={i} count={rows.length} onMove={move} className={C} />
               </td>
               <td className="py-1 pr-2">
                 <Input aria-label={`열 ${i + 1} 코드`} className={`${C} w-24`} value={r.code} disabled={r.saved} title={r.saved ? "저장한 코드는 바꿀 수 없습니다" : undefined} onChange={(e) => update(r.key, { code: e.target.value })} />
@@ -80,7 +76,7 @@ export function ChairsEditor({ settings, onSaved }: { settings: ClinicSettings; 
                 </Select>
               </td>
               <td className="py-1">
-                <Button variant="ghost" className={`${C} text-red-700`} aria-label={`${r.name} 빼기`} onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}>빼기</Button>
+                <RemoveButton name={r.name} text="빼기" className={C} onRemove={() => setRows((list) => list.filter((x) => x.key !== r.key))} />
               </td>
             </tr>
           ))}

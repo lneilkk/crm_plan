@@ -1,12 +1,13 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch, ApiRequestError, ME_QUERY_KEY } from "@/lib/auth/api-client";
 import { DEPARTMENT_NAMES, DEPARTMENTS, type Department, NAV_SECTIONS } from "@/lib/auth/permissions";
 import { HOME_CHOICES, INITIAL_DEPARTMENT_HOMES } from "@/lib/auth/screen-registry";
 import { STAFF_ROLE_LABEL } from "@/lib/domain/staff";
 import { Button, Card, CardTitle, FieldError, Select, Spinner } from "@/components/ui";
+import { SETTINGS_QUERY_KEY, useClinicSettings } from "@/components/shared/queries";
 
 const CHOICE_LABEL = Object.fromEntries(NAV_SECTIONS.map((section) => [section.href, section.label]));
 
@@ -15,7 +16,7 @@ const CHOICE_LABEL = Object.fromEntries(NAV_SECTIONS.map((section) => [section.h
  * 그 화면을 볼 권한이 없는 사람은 볼 수 있는 메뉴의 첫 화면으로 간다.
  */
 export function DepartmentHomesEditor({ onSaved }: { onSaved: (message: string) => void }) {
-  const settings = useQuery({ queryKey: ["settings"], queryFn: () => apiFetch<{ departmentHomes?: Record<string, unknown> }>("/api/settings") });
+  const settings = useClinicSettings();
   if (!settings.data) return <Spinner showLabel />;
   const stored = settings.data.departmentHomes ?? {};
   const initial = Object.fromEntries(
@@ -30,7 +31,7 @@ function Form({ initial, onSaved }: { initial: Record<Department, string>; onSav
   const save = useMutation({
     mutationFn: () => apiFetch("/api/settings/department-homes", { method: "PUT", body: homes }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       onSaved("부서별 첫 화면을 저장했습니다.");
     },

@@ -15,6 +15,9 @@ import {
 import { isHexColor } from "@/lib/calendar/colors";
 import { useAccess } from "@/components/auth/access";
 import { Badge, Button, Card, CardTitle, FieldError, Input, Select } from "@/components/ui";
+import { SETTINGS_QUERY_KEY } from "@/components/shared/queries";
+import { OrderButtons, RemoveButton } from "./list-controls";
+import { moveItem } from "@/lib/list";
 
 type Draft = { key: string; name: string; category: TreatmentCategory; price: string; color: string };
 
@@ -64,7 +67,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
       }),
     onSuccess: async () => {
       setBackfill(null);
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
       onSaved("예약 항목을 저장했습니다.");
     },
     onError: (error) => {
@@ -79,14 +82,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
   const otherError = save.isError && !(save.error instanceof ApiRequestError && save.error.code === "BACKFILL_CONFIRM_REQUIRED");
 
   const update = (key: string, patch: Partial<Draft>) => setItems((list) => list.map((item) => (item.key === key ? { ...item, ...patch } : item)));
-  const move = (index: number, delta: number) =>
-    setItems((list) => {
-      const target = index + delta;
-      if (target < 0 || target >= list.length) return list;
-      const next = [...list];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const move = (index: number, delta: number) => setItems((list) => moveItem(list, index, delta));
 
   return (
     <Card className="p-4">
@@ -104,12 +100,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
         {items.map((item, index) => (
           <li key={item.key} className="flex flex-wrap items-center gap-2" aria-label={`예약 항목 ${index + 1}`}>
             <span className="w-6 text-right text-sm tabular-nums text-slate-500">{index + 1}</span>
-            <Button variant="ghost" aria-label={`${item.name} 위로`} disabled={index === 0} onClick={() => move(index, -1)}>
-              ▲
-            </Button>
-            <Button variant="ghost" aria-label={`${item.name} 아래로`} disabled={index === items.length - 1} onClick={() => move(index, 1)}>
-              ▼
-            </Button>
+            <OrderButtons name={item.name} index={index} count={items.length} onMove={move} />
             <input
               type="color"
               aria-label={`${item.name || "새 항목"} 칸 색`}
@@ -143,9 +134,7 @@ export function TreatmentItemsEditor({ settings, onSaved }: { settings: ClinicSe
               {item.price === "" && <Badge tone="warning">단가 미입력</Badge>}
             </span>
             )}
-            <Button variant="ghost" className="text-red-700" aria-label={`${item.name} 삭제`} onClick={() => setItems((list) => list.filter((x) => x.key !== item.key))}>
-              삭제
-            </Button>
+            <RemoveButton name={item.name} onRemove={() => setItems((list) => list.filter((x) => x.key !== item.key))} />
           </li>
         ))}
       </ol>

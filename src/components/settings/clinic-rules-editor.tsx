@@ -6,6 +6,7 @@ import { apiFetch, ApiRequestError } from "@/lib/auth/api-client";
 import type { BusinessHours, ClinicSettings } from "@/lib/domain/clinic";
 import { isValidTime } from "@/lib/time/kst";
 import { Button, Card, CardTitle, FieldError, Input } from "@/components/ui";
+import { SETTINGS_QUERY_KEY } from "@/components/shared/queries";
 
 const DAYS: { key: keyof BusinessHours; label: string }[] = [
   { key: "1", label: "월" },
@@ -40,7 +41,7 @@ export function ClinicRulesEditor({ settings, onSaved }: { settings: ClinicSetti
         body: { lateToleranceMin: Number(late), noShowGraceMin: Number(grace), businessHours: hours },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
       onSaved("진료시간·기준을 저장했습니다.");
     },
   });
