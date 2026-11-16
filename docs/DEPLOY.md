@@ -172,7 +172,7 @@ Task.md는 R1~R2 프로토타입을 "AWS가 아닌 외부 서버"에 두도록 �
 | --- | --- |
 | 리전·서버 | ap-northeast-2, EC2 t4g.small(arm64) `crm-proto`, Ubuntu 24.04, 디스크 30GB gp3 암호화, IMDSv2만 |
 | 주소 | 고정 IP(Elastic IP) + Route 53 `crm-gbc.com` A 레코드 |
-| 접속 제한 | 보안 그룹 `crm-proto-web`: 80·443만 병원·관리자 IP(/32)에 허용. 22(SSH)는 열지 않고 SSM으로만 관리 |
+| 접속 제한 | 보안 그룹 `crm-proto-web`: 80·443만 병원(`clinic`)·관리자(`admin`)·개발 서버(`dev-server`, 2026-11-16 추가: 배포 확인을 이 PC 브라우저로 하기 위해) IP(/32)에 허용. 22(SSH)는 열지 않고 SSM으로만 관리 |
 | 서버 역할 | `crm-proto-ec2`: `AmazonSSMManagedInstanceCore` + 이 도메인의 Route 53 레코드 수정(인증서 DNS 인증용, `infra/prototype/instance-role-dns-policy.json`) |
 | HTTPS | Caddy(Route 53 DNS 인증 모듈 포함)가 Let's Encrypt 인증서를 받아 `127.0.0.1:3100`(앱)으로 넘긴다. `infra/prototype/` |
 | 코드 | 서버가 GitHub 저장소를 읽기 전용 배포 키(서버 안에서 만든 키, 저장소 Deploy keys에 등록)로 받는다. `/opt/crm/app` |
